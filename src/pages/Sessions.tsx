@@ -7,21 +7,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { useSession } from '@/components/SessionContextProvider'; // Import useSession
-import { showSuccess, showError } from '@/utils/toast'; // Import toast utilities
+import { useSession } from '@/components/SessionContextProvider';
+import { showSuccess, showError } from '@/utils/toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Session {
   id: string;
-  user_id: string; // Added user_id to match Supabase schema
+  user_id: string;
   name: string;
-  date: string; // Changed to string to match Supabase TIMESTAMP WITH TIME ZONE
+  date: string;
   status: 'Active' | 'Completed' | 'Draft';
-  created_at: string; // Added created_at
+  created_at: string;
 }
 
 const Sessions = () => {
@@ -33,6 +44,19 @@ const Sessions = () => {
   const [loadingSessions, setLoadingSessions] = useState<boolean>(true);
   const [addingSession, setAddingSession] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // State for editing
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [currentSession, setCurrentSession] = useState<Session | null>(null);
+  const [editSessionName, setEditSessionName] = useState<string>('');
+  const [editSessionDate, setEditSessionDate] = useState<Date | undefined>(undefined);
+  const [editSessionStatus, setEditSessionStatus] = useState<'Active' | 'Completed' | 'Draft'>('Draft');
+  const [updatingSession, setUpdatingSession] = useState<boolean>(false);
+
+  // State for deleting
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+  const [deletingSession, setDeletingSession] = useState<boolean>(false);
 
   // Fetch sessions from Supabase
   useEffect(() => {
@@ -80,23 +104,100 @@ const Sessions = () => {
       .insert({
         user_id: session.user.id,
         name: newSessionName,
-        date: newSessionDate.toISOString(), // Convert Date object to ISO string
+        date: newSessionDate.toISOString(),
         status: newSessionStatus,
       })
-      .select(); // Select the inserted data to get the full object
+      .select();
 
     if (error) {
       console.error('Error adding session:', error);
       showError('Erreur lors de l\'ajout de la session.');
       setError(error.message);
     } else if (data && data.length > 0) {
-      setSessions((prevSessions) => [data[0] as Session, ...prevSessions]); // Add new session to the top
+      setSessions((prevSessions) => [data[0] as Session, ...prevSessions]);
       setNewSessionName('');
       setNewSessionDate(undefined);
       setNewSessionStatus('Draft');
       showSuccess('Session ajoutée avec succès !');
     }
     setAddingSession(false);
+  };
+
+  const handleEditClick = (sessionItem: Session) => {
+    setCurrentSession(sessionItem);
+    setEditSessionName(sessionItem.name);
+    setEditSessionDate(new Date(sessionItem.date));
+    setEditSessionStatus(sessionItem.status);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentSession || !editSessionName || !editSessionDate || !session?.user?.id) {
+      showError('Veuillez remplir tous les champs et être connecté.');
+      return;
+    }
+
+    setUpdatingSession(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from('sessions')
+      .update({
+        name: editSessionName,
+        date: editSessionDate.toISOString(),
+        status: editSessionStatus,
+      })
+      .eq('id', currentSession.id)
+      .eq('user_id', session.user.id)
+      .select();
+
+    if (error) {
+      console.error('Error updating session:', error);
+      showError('Erreur lors de la mise à jour de la session.');
+      setError(error.message);
+    } else if (data && data.length > 0) {
+      setSessions((prevSessions) =>
+        prevSessions.map((s) => (s.id === currentSession.id ? (data[0] as Session) : s))
+      );
+      showSuccess('Session mise à jour avec succès !');
+      setIsEditDialogOpen(false);
+      setCurrentSession(null);
+    }
+    setUpdatingSession(false);
+  };
+
+  const handleDeleteClick = (sessionId: string) => {
+    setSessionToDelete(sessionId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteSession = async () => {
+    if (!sessionToDelete || !session?.user?.id) {
+      showError('Aucune session sélectionnée pour la suppression ou non connecté.');
+      return;
+    }
+
+    setDeletingSession(true);
+    setError(null);
+
+    const { error } = await supabase
+      .from('sessions')
+      .delete()
+      .eq('id', sessionToDelete)
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      console.error('Error deleting session:', error);
+      showError('Erreur lors de la suppression de la session.');
+      setError(error.message);
+    } else {
+      setSessions((prevSessions) => prevSessions.filter((s) => s.id !== sessionToDelete));
+      showSuccess('Session supprimée avec succès !');
+      setIsDeleteDialogOpen(false);
+      setSessionToDelete(null);
+    }
+    setDeletingSession(false);
   };
 
   if (sessionLoading || loadingSessions) {
@@ -228,7 +329,12 @@ const Sessions = () => {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Modifier</Button>
+                        <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(sessionItem)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(sessionItem.id)} disabled={deletingSession}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -238,6 +344,95 @@ const Sessions = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Session Dialog */}
+      {currentSession && (
+        <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Modifier la Session</AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-600 dark:text-gray-300">
+                Apportez des modifications à la session d'inventaire. Cliquez sur enregistrer lorsque vous avez terminé.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form onSubmit={handleUpdateSession} className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="editSessionName">Nom de la Session</Label>
+                <Input
+                  id="editSessionName"
+                  value={editSessionName}
+                  onChange={(e) => setEditSessionName(e.target.value)}
+                  required
+                  className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editSessionDate">Date de la Session</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600",
+                        !editSessionDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editSessionDate ? format(editSessionDate, "PPP") : <span>Choisir une date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 dark:bg-gray-800 dark:border-gray-600">
+                    <Calendar
+                      mode="single"
+                      selected={editSessionDate}
+                      onSelect={setEditSessionDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editSessionStatus">Statut</Label>
+                <Select value={editSessionStatus} onValueChange={(value: 'Active' | 'Completed' | 'Draft') => setEditSessionStatus(value)}>
+                  <SelectTrigger className="w-full dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600">
+                    <SelectValue placeholder="Sélectionner un statut" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Completed">Complétée</SelectItem>
+                    <SelectItem value="Draft">Brouillon</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
+                <AlertDialogAction type="submit" disabled={updatingSession} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+                  {updatingSession ? 'Mise à jour...' : 'Enregistrer les modifications'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Delete Session Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Êtes-vous absolument sûr ?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600 dark:text-gray-300">
+              Cette action ne peut pas être annulée. Cela supprimera définitivement votre session
+              et supprimera vos données de nos serveurs.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSession} disabled={deletingSession} className="bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600">
+              {deletingSession ? 'Suppression...' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
