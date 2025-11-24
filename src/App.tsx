@@ -9,6 +9,7 @@ import Teams from "./pages/Teams";
 import DataSync from "./pages/DataSync";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login"; // Import the new Login page
+import Profile from "./pages/Profile"; // Import the new Profile page
 import MainLayout from "@/components/layout/MainLayout";
 import { SessionContextProvider, ProtectedRoute } from "@/components/SessionContextProvider"; // Import SessionContextProvider and ProtectedRoute
 
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/zones" element={<ProtectedRoute><MainLayout title="Gestion des Zones d'Inventaire"><Zones /></MainLayout></ProtectedRoute>} />
             <Route path="/teams" element={<ProtectedRoute><MainLayout title="Gestion des Équipes d'Inventaire"><Teams /></MainLayout></ProtectedRoute>} />
             <Route path="/data-sync" element={<ProtectedRoute><MainLayout title="Synchronisation des Données"><DataSync /></MainLayout></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><MainLayout title="Mon Profil"><Profile /></MainLayout></ProtectedRoute>} /> {/* Profile page */}
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
