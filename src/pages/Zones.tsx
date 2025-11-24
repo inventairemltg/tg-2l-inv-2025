@@ -10,6 +10,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useSession } from '@/components/SessionContextProvider'; // Import useSession
 import { showSuccess, showError } from '@/utils/toast'; // Import toast utilities
 import { format } from "date-fns"; // Import format for created_at display
+import { Edit, Trash2 } from "lucide-react"; // Import icons
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Zone {
   id: string;
@@ -29,6 +41,19 @@ const Zones = () => {
   const [loadingZones, setLoadingZones] = useState<boolean>(true);
   const [addingZone, setAddingZone] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // State for editing
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [currentZone, setCurrentZone] = useState<Zone | null>(null);
+  const [editZoneName, setEditZoneName] = useState<string>('');
+  const [editZoneType, setEditZoneType] = useState<'PDV Surface' | 'Dépôt'>('PDV Surface');
+  const [editZoneStatus, setEditZoneStatus] = useState<'Active' | 'In Progress' | 'Completed'>('Active');
+  const [updatingZone, setUpdatingZone] = useState<boolean>(false);
+
+  // State for deleting
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [zoneToDelete, setZoneToDelete] = useState<string | null>(null);
+  const [deletingZone, setDeletingZone] = useState<boolean>(false);
 
   // Fetch zones from Supabase
   useEffect(() => {
@@ -93,6 +118,83 @@ const Zones = () => {
       showSuccess('Zone ajoutée avec succès !');
     }
     setAddingZone(false);
+  };
+
+  const handleEditClick = (zoneItem: Zone) => {
+    setCurrentZone(zoneItem);
+    setEditZoneName(zoneItem.name);
+    setEditZoneType(zoneItem.type);
+    setEditZoneStatus(zoneItem.status);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateZone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentZone || !editZoneName.trim() || !session?.user?.id) {
+      showError('Veuillez remplir tous les champs et être connecté.');
+      return;
+    }
+
+    setUpdatingZone(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from('zones')
+      .update({
+        name: editZoneName.trim(),
+        type: editZoneType,
+        status: editZoneStatus,
+      })
+      .eq('id', currentZone.id)
+      .eq('user_id', session.user.id)
+      .select();
+
+    if (error) {
+      console.error('Error updating zone:', error);
+      showError('Erreur lors de la mise à jour de la zone.');
+      setError(error.message);
+    } else if (data && data.length > 0) {
+      setZones((prevZones) =>
+        prevZones.map((z) => (z.id === currentZone.id ? (data[0] as Zone) : z))
+      );
+      showSuccess('Zone mise à jour avec succès !');
+      setIsEditDialogOpen(false);
+      setCurrentZone(null);
+    }
+    setUpdatingZone(false);
+  };
+
+  const handleDeleteClick = (zoneId: string) => {
+    setZoneToDelete(zoneId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteZone = async () => {
+    if (!zoneToDelete || !session?.user?.id) {
+      showError('Aucune zone sélectionnée pour la suppression ou non connecté.');
+      return;
+    }
+
+    setDeletingZone(true);
+    setError(null);
+
+    const { error } = await supabase
+      .from('zones')
+      .delete()
+      .eq('id', zoneToDelete)
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      console.error('Error deleting zone:', error);
+      showError('Erreur lors de la suppression de la zone.');
+      setError(error.message);
+    } else {
+      setZones((prevZones) => prevZones.filter((z) => z.id !== zoneToDelete));
+      showSuccess('Zone supprimée avec succès !');
+      setIsDeleteDialogOpen(false);
+      setZoneToDelete(null);
+    }
+    setDeletingZone(false);
   };
 
   if (sessionLoading || loadingZones) {
@@ -213,7 +315,12 @@ const Zones = () => {
                       </TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(zone.created_at), "PPP")}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Modifier</Button>
+                        <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(zone)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(zone.id)} disabled={deletingZone}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -223,6 +330,82 @@ const Zones = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Zone Dialog */}
+      {currentZone && (
+        <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Modifier la Zone</AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-600 dark:text-gray-300">
+                Apportez des modifications à la zone d'inventaire. Cliquez sur enregistrer lorsque vous avez terminé.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form onSubmit={handleUpdateZone} className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="editZoneName">Nom de la Zone</Label>
+                <Input
+                  id="editZoneName"
+                  value={editZoneName}
+                  onChange={(e) => setEditZoneName(e.target.value)}
+                  required
+                  className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editZoneType">Type de Zone</Label>
+                <Select value={editZoneType} onValueChange={(value: 'PDV Surface' | 'Dépôt') => setEditZoneType(value)}>
+                  <SelectTrigger className="w-full dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600">
+                    <SelectValue placeholder="Sélectionner un type" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                    <SelectItem value="PDV Surface">PDV Surface (A1-A9999)</SelectItem>
+                    <SelectItem value="Dépôt">Dépôt (D1-D9999)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editZoneStatus">Statut</Label>
+                <Select value={editZoneStatus} onValueChange={(value: 'Active' | 'In Progress' | 'Completed') => setEditZoneStatus(value)}>
+                  <SelectTrigger className="w-full dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600">
+                    <SelectValue placeholder="Sélectionner un statut" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="In Progress">En Cours</SelectItem>
+                    <SelectItem value="Completed">Complétée</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
+                <AlertDialogAction type="submit" disabled={updatingZone} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+                  {updatingZone ? 'Mise à jour...' : 'Enregistrer les modifications'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Delete Zone Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Êtes-vous absolument sûr ?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600 dark:text-gray-300">
+              Cette action ne peut pas être annulée. Cela supprimera définitivement votre zone
+              et supprimera vos données de nos serveurs.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteZone} disabled={deletingZone} className="bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600">
+              {deletingZone ? 'Suppression...' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
