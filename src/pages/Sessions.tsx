@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,38 +12,116 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { useSession } from '@/components/SessionContextProvider'; // Import useSession
+import { showSuccess, showError } from '@/utils/toast'; // Import toast utilities
 
 interface Session {
   id: string;
+  user_id: string; // Added user_id to match Supabase schema
   name: string;
-  date: Date;
+  date: string; // Changed to string to match Supabase TIMESTAMP WITH TIME ZONE
   status: 'Active' | 'Completed' | 'Draft';
+  created_at: string; // Added created_at
 }
 
 const Sessions = () => {
-  const [sessions, setSessions] = useState<Session[]>([
-    { id: '1', name: 'inventaire_PDV Nabeul_2025', date: new Date('2025-01-15'), status: 'Active' },
-    { id: '2', name: 'inventaire_Depot Sousse_2024', date: new Date('2024-11-01'), status: 'Completed' },
-  ]);
+  const { supabase, session, loading: sessionLoading } = useSession();
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [newSessionName, setNewSessionName] = useState<string>('');
   const [newSessionDate, setNewSessionDate] = useState<Date | undefined>(undefined);
   const [newSessionStatus, setNewSessionStatus] = useState<'Active' | 'Completed' | 'Draft'>('Draft');
+  const [loadingSessions, setLoadingSessions] = useState<boolean>(true);
+  const [addingSession, setAddingSession] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleAddSession = (e: React.FormEvent) => {
+  // Fetch sessions from Supabase
+  useEffect(() => {
+    const fetchSessions = async () => {
+      if (!session?.user?.id) {
+        setLoadingSessions(false);
+        return;
+      }
+
+      setLoadingSessions(true);
+      setError(null);
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching sessions:', error);
+        showError('Erreur lors du chargement des sessions.');
+        setError(error.message);
+      } else {
+        setSessions(data as Session[]);
+      }
+      setLoadingSessions(false);
+    };
+
+    if (!sessionLoading && session) {
+      fetchSessions();
+    }
+  }, [session, sessionLoading, supabase]);
+
+  const handleAddSession = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newSessionName && newSessionDate) {
-      const newSession: Session = {
-        id: String(sessions.length + 1),
+    if (!newSessionName || !newSessionDate || !session?.user?.id) {
+      showError('Veuillez remplir tous les champs et être connecté.');
+      return;
+    }
+
+    setAddingSession(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from('sessions')
+      .insert({
+        user_id: session.user.id,
         name: newSessionName,
-        date: newSessionDate,
+        date: newSessionDate.toISOString(), // Convert Date object to ISO string
         status: newSessionStatus,
-      };
-      setSessions([...sessions, newSession]);
+      })
+      .select(); // Select the inserted data to get the full object
+
+    if (error) {
+      console.error('Error adding session:', error);
+      showError('Erreur lors de l\'ajout de la session.');
+      setError(error.message);
+    } else if (data && data.length > 0) {
+      setSessions((prevSessions) => [data[0] as Session, ...prevSessions]); // Add new session to the top
       setNewSessionName('');
       setNewSessionDate(undefined);
       setNewSessionStatus('Draft');
+      showSuccess('Session ajoutée avec succès !');
     }
+    setAddingSession(false);
   };
+
+  if (sessionLoading || loadingSessions) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-120px)]">
+        <p className="text-gray-600 dark:text-gray-300">Chargement des sessions...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-120px)] text-red-500">
+        <p>Erreur: {error}</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-120px)]">
+        <p className="text-gray-600 dark:text-gray-300">Veuillez vous connecter pour voir les sessions.</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -103,7 +181,9 @@ const Sessions = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="md:col-span-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">Ajouter la Session</Button>
+            <Button type="submit" className="md:col-span-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600" disabled={addingSession}>
+              {addingSession ? 'Ajout en cours...' : 'Ajouter la Session'}
+            </Button>
           </form>
         </CardContent>
       </Card>
@@ -126,25 +206,33 @@ const Sessions = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sessions.map((session) => (
-                  <TableRow key={session.id} className="dark:hover:bg-gray-600">
-                    <TableCell className="font-medium text-gray-700 dark:text-gray-300">{session.id}</TableCell>
-                    <TableCell className="text-gray-700 dark:text-gray-300">{session.name}</TableCell> {/* Corrected: Display session name */}
-                    <TableCell className="text-gray-700 dark:text-gray-300">{format(session.date, "PPP")}</TableCell> {/* Corrected: Display session date */}
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        session.status === 'Active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                        session.status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                        'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-100'
-                      }`}>
-                        {session.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm" className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Modifier</Button>
+                {sessions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-gray-500 dark:text-gray-400">
+                      Aucune session trouvée. Créez-en une nouvelle !
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  sessions.map((sessionItem) => (
+                    <TableRow key={sessionItem.id} className="dark:hover:bg-gray-600">
+                      <TableCell className="font-medium text-gray-700 dark:text-gray-300">{sessionItem.id.substring(0, 8)}...</TableCell>
+                      <TableCell className="text-gray-700 dark:text-gray-300">{sessionItem.name}</TableCell>
+                      <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(sessionItem.date), "PPP")}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          sessionItem.status === 'Active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                          sessionItem.status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                          'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-100'
+                        }`}>
+                          {sessionItem.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="sm" className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Modifier</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
