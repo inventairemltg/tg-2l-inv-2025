@@ -8,7 +8,6 @@ import Sessions from "./pages/Sessions";
 import Zones from "./pages/Zones";
 import Teams from "./pages/Teams";
 import DataSync from "./pages/DataSync";
-// import Index from "./pages/Index"; // Removed import for Index
 import NotFound from "./pages/NotFound";
 import MainLayout from "@/components/layout/MainLayout";
 
@@ -28,8 +27,6 @@ const App = () => (
           <Route path="/teams" element={<MainLayout title="Gestion des Équipes d'Inventaire"><Teams /></MainLayout>} />
           <Route path="/data-sync" element={<MainLayout title="Synchronisation des Données"><DataSync /></MainLayout>} />
           
-          {/* Other routes not using the MainLayout */}
-          {/* <Route path="/index" element={<Index />} /> Removed route for Index */}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
