@@ -7,9 +7,10 @@ import InventoryDashboard from "./pages/InventoryDashboard";
 import Sessions from "./pages/Sessions";
 import Zones from "./pages/Zones";
 import Teams from "./pages/Teams";
-import DataSync from "./pages/DataSync"; // Import the new DataSync page
+import DataSync from "./pages/DataSync";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import MainLayout from "@/components/layout/MainLayout"; // Updated import to use alias
 
 const queryClient = new QueryClient();
 
@@ -20,11 +21,14 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<InventoryDashboard />} />
-          <Route path="/sessions" element={<Sessions />} />
-          <Route path="/zones" element={<Zones />} />
-          <Route path="/teams" element={<Teams />} />
-          <Route path="/data-sync" element={<DataSync />} /> {/* Add route for DataSync page */}
+          {/* Routes using the MainLayout */}
+          <Route path="/" element={<MainLayout title="Gestion d'Inventaire"><InventoryDashboard /></MainLayout>} />
+          <Route path="/sessions" element={<MainLayout title="Gestion des Sessions d'Inventaire"><Sessions /></MainLayout>} />
+          <Route path="/zones" element={<MainLayout title="Gestion des Zones d'Inventaire"><Zones /></MainLayout>} />
+          <Route path="/teams" element={<MainLayout title="Gestion des Équipes d'Inventaire"><Teams /></MainLayout>} />
+          <Route path="/data-sync" element={<MainLayout title="Synchronisation des Données"><DataSync /></MainLayout>} />
+          
+          {/* Other routes not using the MainLayout */}
           <Route path="/index" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
