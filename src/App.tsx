@@ -4,7 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import InventoryDashboard from "./pages/InventoryDashboard";
-import Sessions from "./pages/Sessions"; // Import the new Sessions page
+import Sessions from "./pages/Sessions";
+import Zones from "./pages/Zones"; // Import the new Zones page
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -18,7 +19,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<InventoryDashboard />} />
-          <Route path="/sessions" element={<Sessions />} /> {/* Add route for Sessions page */}
+          <Route path="/sessions" element={<Sessions />} />
+          <Route path="/zones" element={<Zones />} /> {/* Add route for Zones page */}
           <Route path="/index" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
