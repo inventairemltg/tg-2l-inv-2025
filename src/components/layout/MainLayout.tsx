@@ -1,9 +1,8 @@
 "use client";
 
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { MadeWithDyad } from "@/components/made-with-dyad";
-import { ThemeToggle } from "@/components/ThemeToggle"; // Import ThemeToggle
+import Sidebar from "./Sidebar"; // Import the new Sidebar component
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -12,30 +11,30 @@ interface MainLayoutProps {
 
 const MainLayout = ({ children, title }: MainLayoutProps) => {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-50">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow p-4 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-50 mb-2 md:mb-0">{title}</h1>
-        <nav className="flex flex-wrap justify-center gap-4">
-          <Link to="/" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">Tableau de Bord</Link>
-          <Link to="/sessions" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">Sessions</Link>
-          <Link to="/zones" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">Zones</Link>
-          <Link to="/teams" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">Équipes</Link>
-          <Link to="/data-sync" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">Synchronisation</Link>
-          <ThemeToggle /> {/* Add the ThemeToggle here */}
-        </nav>
-      </header>
+    <div className="grid min-h-screen w-full md:grid-cols-[250px_1fr] lg:grid-cols-[280px_1fr]">
+      <Sidebar /> {/* Render the Sidebar */}
+      <div className="flex flex-col">
+        {/* Header */}
+        <header className="flex h-14 items-center gap-4 border-b bg-white dark:bg-gray-800 px-4 lg:h-[60px] lg:px-6 sticky top-0 z-10">
+          <div className="md:hidden">
+            {/* Mobile sidebar trigger will be inside the Sidebar component */}
+            <Sidebar /> 
+          </div>
+          <h1 className="flex-1 text-2xl font-bold text-gray-800 dark:text-gray-50">{title}</h1>
+          {/* ThemeToggle and navigation links are now handled by Sidebar */}
+        </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 p-6 container mx-auto">
-        {children}
-      </main>
+        {/* Main Content Area */}
+        <main className="flex-1 p-6 container mx-auto">
+          {children}
+        </main>
 
-      {/* Footer */}
-      <footer className="bg-gray-800 dark:bg-gray-950 text-white p-4 text-center mt-auto">
-        <p className="mb-2">&copy; 2024 Gestion d'Inventaire. Tous droits réservés.</p>
-        <MadeWithDyad />
-      </footer>
+        {/* Footer */}
+        <footer className="bg-gray-800 dark:bg-gray-950 text-white p-4 text-center mt-auto">
+          <p className="mb-2">&copy; 2024 Gestion d'Inventaire. Tous droits réservés.</p>
+          <MadeWithDyad />
+        </footer>
+      </div>
     </div>
   );
 };
