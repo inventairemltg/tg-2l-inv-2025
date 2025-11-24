@@ -99,47 +99,56 @@ const InventoryDashboard = () => {
         if (zoneStatusesError) throw zoneStatusesError;
         setZoneStatuses(zoneStatusesData as ZoneData[]);
 
-        // Fetch data for Session Status Chart
-        const { data: sessionStatusCounts, error: sessionStatusError } = await supabase
+        // --- Data for Session Status Chart ---
+        const { data: allSessions, error: allSessionsError } = await supabase
           .from('sessions')
-          .select('status, count')
-          .eq('user_id', session.user.id)
-          .returns<{ status: 'Active' | 'Completed' | 'Draft', count: number }[]>();
+          .select('status')
+          .eq('user_id', session.user.id);
 
-        if (sessionStatusError) throw sessionStatusError;
+        if (allSessionsError) throw allSessionsError;
+        const sessionStatusCounts = allSessions.reduce((acc, sessionItem) => {
+          acc[sessionItem.status] = (acc[sessionItem.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
         const formattedSessionStatusData = [
-          { name: 'Active', value: sessionStatusCounts?.find(s => s.status === 'Active')?.count || 0 },
-          { name: 'Complétée', value: sessionStatusCounts?.find(s => s.status === 'Completed')?.count || 0 },
-          { name: 'Brouillon', value: sessionStatusCounts?.find(s => s.status === 'Draft')?.count || 0 },
+          { name: 'Active', value: sessionStatusCounts['Active'] || 0 },
+          { name: 'Complétée', value: sessionStatusCounts['Completed'] || 0 },
+          { name: 'Brouillon', value: sessionStatusCounts['Draft'] || 0 },
         ].filter(item => item.value > 0);
         setSessionStatusData(formattedSessionStatusData);
 
-        // Fetch data for Zone Type Chart
-        const { data: zoneTypeCounts, error: zoneTypeError } = await supabase
+        // --- Data for Zone Type Chart and Zone Overall Status Chart ---
+        // Fetch both 'type' and 'status' in one go for efficiency
+        const { data: allZones, error: allZonesError } = await supabase
           .from('zones')
-          .select('type, count')
-          .eq('user_id', session.user.id)
-          .returns<{ type: 'PDV Surface' | 'Dépôt', count: number }[]>();
+          .select('type, status') // Now selecting both type and status
+          .eq('user_id', session.user.id);
 
-        if (zoneTypeError) throw zoneTypeError;
+        if (allZonesError) throw allZonesError;
+        
+        // Process for Zone Type Chart
+        const zoneTypeCounts = allZones.reduce((acc, zoneItem) => {
+          acc[zoneItem.type] = (acc[zoneItem.type] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
         const formattedZoneTypeData = [
-          { name: 'PDV Surface', value: zoneTypeCounts?.find(z => z.type === 'PDV Surface')?.count || 0 },
-          { name: 'Dépôt', value: zoneTypeCounts?.find(z => z.type === 'Dépôt')?.count || 0 },
+          { name: 'PDV Surface', value: zoneTypeCounts['PDV Surface'] || 0 },
+          { name: 'Dépôt', value: zoneTypeCounts['Dépôt'] || 0 },
         ].filter(item => item.value > 0);
         setZoneTypeData(formattedZoneTypeData);
 
-        // Fetch data for Zone Overall Status Chart
-        const { data: zoneOverallStatusCounts, error: zoneOverallStatusError } = await supabase
-          .from('zones')
-          .select('status, count')
-          .eq('user_id', session.user.id)
-          .returns<{ status: 'Active' | 'In Progress' | 'Completed', count: number }[]>();
+        // Process for Zone Overall Status Chart
+        const zoneOverallStatusCounts = allZones.reduce((acc, zoneItem) => {
+          acc[zoneItem.status] = (acc[zoneItem.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
 
-        if (zoneOverallStatusError) throw zoneOverallStatusError;
         const formattedZoneOverallStatusData = [
-          { name: 'Active', value: zoneOverallStatusCounts?.find(z => z.status === 'Active')?.count || 0 },
-          { name: 'En Cours', value: zoneOverallStatusCounts?.find(z => z.status === 'In Progress')?.count || 0 },
-          { name: 'Complétée', value: zoneOverallStatusCounts?.find(z => z.status === 'Completed')?.count || 0 },
+          { name: 'Active', value: zoneOverallStatusCounts['Active'] || 0 },
+          { name: 'En Cours', value: zoneOverallStatusCounts['In Progress'] || 0 },
+          { name: 'Complétée', value: zoneOverallStatusCounts['Completed'] || 0 },
         ].filter(item => item.value > 0);
         setZoneOverallStatusData(formattedZoneOverallStatusData);
 
