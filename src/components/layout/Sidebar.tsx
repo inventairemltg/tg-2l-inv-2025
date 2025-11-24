@@ -113,9 +113,7 @@ const Sidebar = () => {
             ))}
           </nav>
         </div>
-        <div className="mt-auto p-4 border-t border-sidebar-border">
-          <ThemeToggle />
-        </div>
+        {/* ThemeToggle removed from desktop sidebar, now in MainLayout header */}
       </div>
     </div>
   );
