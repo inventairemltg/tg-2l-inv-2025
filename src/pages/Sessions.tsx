@@ -129,7 +129,8 @@ const Sessions = () => {
                 {sessions.map((session) => (
                   <TableRow key={session.id} className="dark:hover:bg-gray-600">
                     <TableCell className="font-medium text-gray-700 dark:text-gray-300">{session.id}</TableCell>
-                    <TableCell className="text-gray-700 dark:text-gray-300">{format(session.date, "PPP")}</TableCell>
+                    <TableCell className="text-gray-700 dark:text-gray-300">{session.name}</TableCell> {/* Corrected: Display session name */}
+                    <TableCell className="text-gray-700 dark:text-gray-300">{format(session.date, "PPP")}</TableCell> {/* Corrected: Display session date */}
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         session.status === 'Active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
