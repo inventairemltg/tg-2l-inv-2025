@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { MadeWithDyad } from "@/components/made-with-dyad";
-import Sidebar from "./Sidebar"; // Import the new Sidebar component
+import DesktopSidebar from "./DesktopSidebar"; // Import the new DesktopSidebar component
+import MobileSidebar from "./MobileSidebar"; // Import the new MobileSidebar component
 import { ThemeToggle } from "@/components/ThemeToggle"; // Import ThemeToggle
 
 interface MainLayoutProps {
@@ -13,13 +14,13 @@ interface MainLayoutProps {
 const MainLayout = ({ children, title }: MainLayoutProps) => {
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[250px_1fr] lg:grid-cols-[280px_1fr]">
-      <Sidebar /> {/* Render the Sidebar */}
+      <DesktopSidebar /> {/* Render the DesktopSidebar */}
       <div className="flex flex-col">
         {/* Header */}
         <header className="flex h-14 items-center gap-4 border-b bg-white dark:bg-gray-800 px-4 lg:h-[60px] lg:px-6 sticky top-0 z-10">
           <div className="md:hidden">
-            {/* Mobile sidebar trigger is now handled by the Sidebar component itself */}
-            <Sidebar /> 
+            {/* Mobile sidebar trigger is now handled by the MobileSidebar component */}
+            <MobileSidebar /> 
           </div>
           <h1 className="flex-1 text-2xl font-bold text-gray-800 dark:text-gray-50">{title}</h1>
           <div className="hidden md:block"> {/* ThemeToggle visible on desktop */}
