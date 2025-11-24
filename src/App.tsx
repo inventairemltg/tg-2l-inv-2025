@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import InventoryDashboard from "./pages/InventoryDashboard";
 import Sessions from "./pages/Sessions";
-import Zones from "./pages/Zones"; // Import the new Zones page
+import Zones from "./pages/Zones";
+import Teams from "./pages/Teams"; // Import the new Teams page
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -20,7 +21,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<InventoryDashboard />} />
           <Route path="/sessions" element={<Sessions />} />
-          <Route path="/zones" element={<Zones />} /> {/* Add route for Zones page */}
+          <Route path="/zones" element={<Zones />} />
+          <Route path="/teams" element={<Teams />} /> {/* Add route for Teams page */}
           <Route path="/index" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
