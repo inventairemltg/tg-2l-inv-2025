@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom"; // Import useLocation
 import { Menu, LayoutDashboard, ListChecks, Box, Users, Cloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -35,7 +35,8 @@ const NavLink = ({ to, icon: Icon, label, currentPath, onLinkClick }: NavLinkPro
 
 const MobileSidebar = () => {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const currentPath = window.location.pathname;
+  const location = useLocation(); // Use useLocation hook
+  const currentPath = location.pathname; // Get current path from location object
 
   const navigation = [
     { to: "/", icon: LayoutDashboard, label: "Tableau de Bord" },

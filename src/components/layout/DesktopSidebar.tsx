@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom"; // Import useLocation
 import { LayoutDashboard, ListChecks, Box, Users, Cloud } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,8 @@ const NavLink = ({ to, icon: Icon, label, currentPath }: NavLinkProps) => {
 };
 
 const DesktopSidebar = () => {
-  const currentPath = window.location.pathname; // Get current path for active link styling
+  const location = useLocation(); // Use useLocation hook
+  const currentPath = location.pathname; // Get current path from location object
 
   const navigation = [
     { to: "/", icon: LayoutDashboard, label: "Tableau de Bord" },
