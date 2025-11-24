@@ -23,9 +23,8 @@ const MainLayout = ({ children, title }: MainLayoutProps) => {
             <MobileSidebar /> 
           </div>
           <h1 className="flex-1 text-2xl font-bold text-gray-800 dark:text-gray-50">{title}</h1>
-          <div className="hidden md:block"> {/* ThemeToggle visible on desktop */}
-            <ThemeToggle />
-          </div>
+          {/* ThemeToggle is now always visible in the header */}
+          <ThemeToggle />
         </header>
 
         {/* Main Content Area */}

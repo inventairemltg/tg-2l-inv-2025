@@ -5,7 +5,6 @@ import { Link, useLocation } from "react-router-dom"; // Import useLocation
 import { Menu, LayoutDashboard, ListChecks, Box, Users, Cloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 interface NavLinkProps {
@@ -79,9 +78,7 @@ const MobileSidebar = () => {
             />
           ))}
         </nav>
-        <div className="mt-auto p-4 border-t border-sidebar-border">
-          <ThemeToggle />
-        </div>
+        {/* ThemeToggle removed from here as it's now in the MainLayout header */}
       </SheetContent>
     </Sheet>
   );
