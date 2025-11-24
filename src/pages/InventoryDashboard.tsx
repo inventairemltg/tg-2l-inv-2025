@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSession } from '@/components/SessionContextProvider'; // Import useSession
 import { showError } from '@/utils/toast'; // Import toast utilities
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 interface SessionData {
   name: string;
@@ -17,6 +18,13 @@ interface ZoneData {
   type: 'PDV Surface' | 'Dépôt';
 }
 
+interface ChartData {
+  name: string;
+  value: number;
+}
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A28DFF']; // Custom colors for charts
+
 const InventoryDashboard = () => {
   const { supabase, session, loading: sessionLoading } = useSession();
   const [totalSessions, setTotalSessions] = useState(0);
@@ -24,6 +32,9 @@ const InventoryDashboard = () => {
   const [completedZones, setCompletedZones] = useState(0);
   const [recentSessions, setRecentSessions] = useState<SessionData[]>([]);
   const [zoneStatuses, setZoneStatuses] = useState<ZoneData[]>([]);
+  const [sessionStatusData, setSessionStatusData] = useState<ChartData[]>([]);
+  const [zoneTypeData, setZoneTypeData] = useState<ChartData[]>([]);
+  const [zoneOverallStatusData, setZoneOverallStatusData] = useState<ChartData[]>([]);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,6 +98,50 @@ const InventoryDashboard = () => {
 
         if (zoneStatusesError) throw zoneStatusesError;
         setZoneStatuses(zoneStatusesData as ZoneData[]);
+
+        // Fetch data for Session Status Chart
+        const { data: sessionStatusCounts, error: sessionStatusError } = await supabase
+          .from('sessions')
+          .select('status, count')
+          .eq('user_id', session.user.id)
+          .returns<{ status: 'Active' | 'Completed' | 'Draft', count: number }[]>();
+
+        if (sessionStatusError) throw sessionStatusError;
+        const formattedSessionStatusData = [
+          { name: 'Active', value: sessionStatusCounts?.find(s => s.status === 'Active')?.count || 0 },
+          { name: 'Complétée', value: sessionStatusCounts?.find(s => s.status === 'Completed')?.count || 0 },
+          { name: 'Brouillon', value: sessionStatusCounts?.find(s => s.status === 'Draft')?.count || 0 },
+        ].filter(item => item.value > 0);
+        setSessionStatusData(formattedSessionStatusData);
+
+        // Fetch data for Zone Type Chart
+        const { data: zoneTypeCounts, error: zoneTypeError } = await supabase
+          .from('zones')
+          .select('type, count')
+          .eq('user_id', session.user.id)
+          .returns<{ type: 'PDV Surface' | 'Dépôt', count: number }[]>();
+
+        if (zoneTypeError) throw zoneTypeError;
+        const formattedZoneTypeData = [
+          { name: 'PDV Surface', value: zoneTypeCounts?.find(z => z.type === 'PDV Surface')?.count || 0 },
+          { name: 'Dépôt', value: zoneTypeCounts?.find(z => z.type === 'Dépôt')?.count || 0 },
+        ].filter(item => item.value > 0);
+        setZoneTypeData(formattedZoneTypeData);
+
+        // Fetch data for Zone Overall Status Chart
+        const { data: zoneOverallStatusCounts, error: zoneOverallStatusError } = await supabase
+          .from('zones')
+          .select('status, count')
+          .eq('user_id', session.user.id)
+          .returns<{ status: 'Active' | 'In Progress' | 'Completed', count: number }[]>();
+
+        if (zoneOverallStatusError) throw zoneOverallStatusError;
+        const formattedZoneOverallStatusData = [
+          { name: 'Active', value: zoneOverallStatusCounts?.find(z => z.status === 'Active')?.count || 0 },
+          { name: 'En Cours', value: zoneOverallStatusCounts?.find(z => z.status === 'In Progress')?.count || 0 },
+          { name: 'Complétée', value: zoneOverallStatusCounts?.find(z => z.status === 'Completed')?.count || 0 },
+        ].filter(item => item.value > 0);
+        setZoneOverallStatusData(formattedZoneOverallStatusData);
 
       } catch (err: any) {
         console.error('Error fetching dashboard data:', err);
@@ -158,6 +213,99 @@ const InventoryDashboard = () => {
             <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{completedZones}</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Section: Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
+        {sessionStatusData.length > 0 && (
+          <Card className="shadow-md dark:bg-gray-700">
+            <CardHeader>
+              <CardTitle className="text-xl font-semibold text-gray-700 dark:text-gray-200">Statut des Sessions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={sessionStatusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {sessionStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {zoneTypeData.length > 0 && (
+          <Card className="shadow-md dark:bg-gray-700">
+            <CardHeader>
+              <CardTitle className="text-xl font-semibold text-gray-700 dark:text-gray-200">Type de Zones</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={zoneTypeData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {zoneTypeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {zoneOverallStatusData.length > 0 && (
+          <Card className="shadow-md dark:bg-gray-700">
+            <CardHeader>
+              <CardTitle className="text-xl font-semibold text-gray-700 dark:text-gray-200">Statut Général des Zones</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={zoneOverallStatusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {zoneOverallStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Section: Recent Sessions */}
