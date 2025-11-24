@@ -9,6 +9,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useSession } from '@/components/SessionContextProvider'; // Import useSession
 import { showSuccess, showError } from '@/utils/toast'; // Import toast utilities
 import { format } from "date-fns"; // Import format for created_at display
+import { Edit, Trash2 } from "lucide-react"; // Import icons
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Team {
   id: string;
@@ -24,6 +36,17 @@ const Teams = () => {
   const [loadingTeams, setLoadingTeams] = useState<boolean>(true);
   const [addingTeam, setAddingTeam] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // State for editing
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
+  const [editTeamName, setEditTeamName] = useState<string>('');
+  const [updatingTeam, setUpdatingTeam] = useState<boolean>(false);
+
+  // State for deleting
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<string | null>(null);
+  const [deletingTeam, setDeletingTeam] = useState<boolean>(false);
 
   // Fetch teams from Supabase
   useEffect(() => {
@@ -84,6 +107,79 @@ const Teams = () => {
       showSuccess('Équipe ajoutée avec succès !');
     }
     setAddingTeam(false);
+  };
+
+  const handleEditClick = (teamItem: Team) => {
+    setCurrentTeam(teamItem);
+    setEditTeamName(teamItem.name);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentTeam || !editTeamName.trim() || !session?.user?.id) {
+      showError('Veuillez remplir le nom de l\'équipe et être connecté.');
+      return;
+    }
+
+    setUpdatingTeam(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from('teams')
+      .update({
+        name: editTeamName.trim(),
+      })
+      .eq('id', currentTeam.id)
+      .eq('user_id', session.user.id)
+      .select();
+
+    if (error) {
+      console.error('Error updating team:', error);
+      showError('Erreur lors de la mise à jour de l\'équipe.');
+      setError(error.message);
+    } else if (data && data.length > 0) {
+      setTeams((prevTeams) =>
+        prevTeams.map((t) => (t.id === currentTeam.id ? (data[0] as Team) : t))
+      );
+      showSuccess('Équipe mise à jour avec succès !');
+      setIsEditDialogOpen(false);
+      setCurrentTeam(null);
+    }
+    setUpdatingTeam(false);
+  };
+
+  const handleDeleteClick = (teamId: string) => {
+    setTeamToDelete(teamId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteTeam = async () => {
+    if (!teamToDelete || !session?.user?.id) {
+      showError('Aucune équipe sélectionnée pour la suppression ou non connecté.');
+      return;
+    }
+
+    setDeletingTeam(true);
+    setError(null);
+
+    const { error } = await supabase
+      .from('teams')
+      .delete()
+      .eq('id', teamToDelete)
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      console.error('Error deleting team:', error);
+      showError('Erreur lors de la suppression de l\'équipe.');
+      setError(error.message);
+    } else {
+      setTeams((prevTeams) => prevTeams.filter((t) => t.id !== teamToDelete));
+      showSuccess('Équipe supprimée avec succès !');
+      setIsDeleteDialogOpen(false);
+      setTeamToDelete(null);
+    }
+    setDeletingTeam(false);
   };
 
   if (sessionLoading || loadingTeams) {
@@ -167,7 +263,12 @@ const Teams = () => {
                       <TableCell className="text-gray-700 dark:text-gray-300">{team.name}</TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(team.created_at), "PPP")}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Modifier</Button>
+                        <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(team)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(team.id)} disabled={deletingTeam}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -177,6 +278,57 @@ const Teams = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Team Dialog */}
+      {currentTeam && (
+        <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Modifier l'Équipe</AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-600 dark:text-gray-300">
+                Apportez des modifications au nom de l'équipe. Cliquez sur enregistrer lorsque vous avez terminé.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form onSubmit={handleUpdateTeam} className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="editTeamName">Nom de l'Équipe</Label>
+                <Input
+                  id="editTeamName"
+                  value={editTeamName}
+                  onChange={(e) => setEditTeamName(e.target.value)}
+                  required
+                  className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
+                <AlertDialogAction type="submit" disabled={updatingTeam} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+                  {updatingTeam ? 'Mise à jour...' : 'Enregistrer les modifications'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Delete Team Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Êtes-vous absolument sûr ?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600 dark:text-gray-300">
+              Cette action ne peut pas être annulée. Cela supprimera définitivement votre équipe
+              et supprimera vos données de nos serveurs.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTeam} disabled={deletingTeam} className="bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600">
+              {deletingTeam ? 'Suppression...' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
