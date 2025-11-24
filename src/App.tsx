@@ -8,7 +8,9 @@ import Zones from "./pages/Zones";
 import Teams from "./pages/Teams";
 import DataSync from "./pages/DataSync";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login"; // Import the new Login page
 import MainLayout from "@/components/layout/MainLayout";
+import { SessionContextProvider, ProtectedRoute } from "@/components/SessionContextProvider"; // Import SessionContextProvider and ProtectedRoute
 
 const queryClient = new QueryClient();
 
@@ -18,17 +20,21 @@ const App = () => (
       {/* Using Sonner for all toast notifications */}
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          {/* Routes using the MainLayout */}
-          <Route path="/" element={<MainLayout title="Gestion d'Inventaire"><InventoryDashboard /></MainLayout>} />
-          <Route path="/sessions" element={<MainLayout title="Gestion des Sessions d'Inventaire"><Sessions /></MainLayout>} />
-          <Route path="/zones" element={<MainLayout title="Gestion des Zones d'Inventaire"><Zones /></MainLayout>} />
-          <Route path="/teams" element={<MainLayout title="Gestion des Équipes d'Inventaire"><Teams /></MainLayout>} />
-          <Route path="/data-sync" element={<MainLayout title="Synchronisation des Données"><DataSync /></MainLayout>} />
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <SessionContextProvider> {/* Wrap the entire app with SessionContextProvider */}
+          <Routes>
+            <Route path="/login" element={<Login />} /> {/* Login page */}
+            
+            {/* Protected routes using the MainLayout */}
+            <Route path="/" element={<ProtectedRoute><MainLayout title="Gestion d'Inventaire"><InventoryDashboard /></MainLayout></ProtectedRoute>} />
+            <Route path="/sessions" element={<ProtectedRoute><MainLayout title="Gestion des Sessions d'Inventaire"><Sessions /></MainLayout></ProtectedRoute>} />
+            <Route path="/zones" element={<ProtectedRoute><MainLayout title="Gestion des Zones d'Inventaire"><Zones /></MainLayout></ProtectedRoute>} />
+            <Route path="/teams" element={<ProtectedRoute><MainLayout title="Gestion des Équipes d'Inventaire"><Teams /></MainLayout></ProtectedRoute>} />
+            <Route path="/data-sync" element={<ProtectedRoute><MainLayout title="Synchronisation des Données"><DataSync /></MainLayout></ProtectedRoute>} />
+            
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </SessionContextProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
