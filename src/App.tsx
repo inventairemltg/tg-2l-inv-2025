@@ -6,12 +6,13 @@ import InventoryDashboard from "./pages/InventoryDashboard";
 import Sessions from "./pages/Sessions";
 import Zones from "./pages/Zones";
 import Teams from "./pages/Teams";
+import Items from "./pages/Items"; // Import the new Items page
 import DataSync from "./pages/DataSync";
 import NotFound from "./pages/NotFound";
-import Login from "./pages/Login"; // Import the new Login page
-import Profile from "./pages/Profile"; // Import the new Profile page
+import Login from "./pages/Login";
+import Profile from "./pages/Profile";
 import MainLayout from "@/components/layout/MainLayout";
-import { SessionContextProvider, ProtectedRoute } from "@/components/SessionContextProvider"; // Import SessionContextProvider and ProtectedRoute
+import { SessionContextProvider, ProtectedRoute } from "@/components/SessionContextProvider";
 
 const queryClient = new QueryClient();
 
@@ -20,18 +21,19 @@ const App = () => (
     <TooltipProvider>
       {/* Using Sonner for all toast notifications */}
       <Sonner />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}> {/* Enabled future flags */}
-        <SessionContextProvider> {/* Wrap the entire app with SessionContextProvider */}
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SessionContextProvider>
           <Routes>
-            <Route path="/login" element={<Login />} /> {/* Login page */}
+            <Route path="/login" element={<Login />} />
             
             {/* Protected routes using the MainLayout */}
             <Route path="/" element={<ProtectedRoute><MainLayout title="Gestion d'Inventaire"><InventoryDashboard /></MainLayout></ProtectedRoute>} />
             <Route path="/sessions" element={<ProtectedRoute><MainLayout title="Gestion des Sessions d'Inventaire"><Sessions /></MainLayout></ProtectedRoute>} />
             <Route path="/zones" element={<ProtectedRoute><MainLayout title="Gestion des Zones d'Inventaire"><Zones /></MainLayout></ProtectedRoute>} />
             <Route path="/teams" element={<ProtectedRoute><MainLayout title="Gestion des Équipes d'Inventaire"><Teams /></MainLayout></ProtectedRoute>} />
+            <Route path="/items" element={<ProtectedRoute><MainLayout title="Gestion des Articles d'Inventaire"><Items /></MainLayout></ProtectedRoute>} /> {/* New Items route */}
             <Route path="/data-sync" element={<ProtectedRoute><MainLayout title="Synchronisation des Données"><DataSync /></MainLayout></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><MainLayout title="Mon Profil"><Profile /></MainLayout></ProtectedRoute>} /> {/* Profile page */}
+            <Route path="/profile" element={<ProtectedRoute><MainLayout title="Mon Profil"><Profile /></MainLayout></ProtectedRoute>} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

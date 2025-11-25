@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Link, useLocation } from "react-router-dom"; // Import useLocation
-import { LayoutDashboard, ListChecks, Box, Users, Cloud } from "lucide-react";
+import { LayoutDashboard, ListChecks, Box, Users, Cloud, Package } from "lucide-react"; // Import Package icon
 import { cn } from "@/lib/utils";
 
 interface NavLinkProps {
@@ -37,6 +37,7 @@ const DesktopSidebar = () => {
     { to: "/sessions", icon: ListChecks, label: "Sessions" },
     { to: "/zones", icon: Box, label: "Zones" },
     { to: "/teams", icon: Users, label: "Équipes" },
+    { to: "/items", icon: Package, label: "Articles" },
     { to: "/data-sync", icon: Cloud, label: "Synchronisation" },
   ];
 

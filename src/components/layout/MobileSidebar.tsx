@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom"; // Import useLocation
-import { Menu, LayoutDashboard, ListChecks, Box, Users, Cloud } from "lucide-react";
+import { Menu, LayoutDashboard, ListChecks, Box, Users, Cloud, Package } from "lucide-react"; // Import Package icon
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ const MobileSidebar = () => {
     { to: "/sessions", icon: ListChecks, label: "Sessions" },
     { to: "/zones", icon: Box, label: "Zones" },
     { to: "/teams", icon: Users, label: "Équipes" },
+    { to: "/items", icon: Package, label: "Articles" },
     { to: "/data-sync", icon: Cloud, label: "Synchronisation" },
   ];
 
