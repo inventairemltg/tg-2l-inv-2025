@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
@@ -30,17 +31,25 @@ interface Item {
   sku: string;
   quantity: number;
   price: number | null;
+  zone_id: string | null; // New field
   created_at: string;
+}
+
+interface ZoneOption {
+  id: string;
+  name: string;
 }
 
 const Items = () => {
   const { supabase, session, loading: sessionLoading } = useSession();
   const [items, setItems] = useState<Item[]>([]);
+  const [zonesOptions, setZonesOptions] = useState<ZoneOption[]>([]); // For zone dropdown
   const [newItemName, setNewItemName] = useState<string>('');
   const [newItemDescription, setNewItemDescription] = useState<string>('');
   const [newItemSku, setNewItemSku] = useState<string>('');
   const [newItemQuantity, setNewItemQuantity] = useState<number>(0);
   const [newItemPrice, setNewItemPrice] = useState<string>('');
+  const [newZoneId, setNewZoneId] = useState<string | null>(null); // New state for zone_id
   const [loadingItems, setLoadingItems] = useState<boolean>(true);
   const [addingItem, setAddingItem] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,12 +62,35 @@ const Items = () => {
   const [editItemSku, setEditItemSku] = useState<string>('');
   const [editItemQuantity, setEditItemQuantity] = useState<number>(0);
   const [editItemPrice, setEditItemPrice] = useState<string>('');
+  const [editZoneId, setEditZoneId] = useState<string | null>(null); // New state for zone_id
   const [updatingItem, setUpdatingItem] = useState<boolean>(false);
 
   // State for deleting
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [deletingItem, setDeletingItem] = useState<boolean>(false);
+
+  // Fetch zones for dropdown
+  useEffect(() => {
+    const fetchZonesOptions = async () => {
+      if (!session?.user?.id) return;
+      const { data, error } = await supabase
+        .from('zones')
+        .select('id, name')
+        .eq('user_id', session.user.id)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching zones for dropdown:', error);
+      } else {
+        setZonesOptions(data as ZoneOption[]);
+      }
+    };
+
+    if (!sessionLoading && session) {
+      fetchZonesOptions();
+    }
+  }, [session, sessionLoading, supabase]);
 
   // Fetch items from Supabase
   useEffect(() => {
@@ -72,7 +104,7 @@ const Items = () => {
       setError(null);
       const { data, error } = await supabase
         .from('items')
-        .select('*')
+        .select('*, zones(name)') // Select zone name for display
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
@@ -81,7 +113,10 @@ const Items = () => {
         showError('Erreur lors du chargement des articles.');
         setError(error.message);
       } else {
-        setItems(data as Item[]);
+        setItems(data.map(item => ({
+          ...item,
+          zone_name: item.zones?.name || 'Non assignée' // Add zone_name for display
+        })) as Item[]);
       }
       setLoadingItems(false);
     };
@@ -110,20 +145,25 @@ const Items = () => {
         sku: newItemSku.trim(),
         quantity: newItemQuantity,
         price: newItemPrice ? parseFloat(newItemPrice) : null,
+        zone_id: newZoneId, // Include zone_id
       })
-      .select();
+      .select('*, zones(name)'); // Select the inserted data to get the full object and zone name
 
     if (error) {
       console.error('Error adding item:', error);
       showError('Erreur lors de l\'ajout de l\'article: ' + error.message);
       setError(error.message);
     } else if (data && data.length > 0) {
-      setItems((prevItems) => [data[0] as Item, ...prevItems]);
+      setItems((prevItems) => [{
+        ...data[0] as Item,
+        zone_name: (data[0] as any).zones?.name || 'Non assignée'
+      }, ...prevItems]);
       setNewItemName('');
       setNewItemDescription('');
       setNewItemSku('');
       setNewItemQuantity(0);
       setNewItemPrice('');
+      setNewZoneId(null); // Reset zone_id
       showSuccess('Article ajouté avec succès !');
     }
     setAddingItem(false);
@@ -136,6 +176,7 @@ const Items = () => {
     setEditItemSku(item.sku);
     setEditItemQuantity(item.quantity);
     setEditItemPrice(item.price !== null ? item.price.toString() : '');
+    setEditZoneId(item.zone_id); // Set zone_id for editing
     setIsEditDialogOpen(true);
   };
 
@@ -157,10 +198,11 @@ const Items = () => {
         sku: editItemSku.trim(),
         quantity: editItemQuantity,
         price: editItemPrice ? parseFloat(editItemPrice) : null,
+        zone_id: editZoneId, // Update zone_id
       })
       .eq('id', currentItem.id)
       .eq('user_id', session.user.id)
-      .select();
+      .select('*, zones(name)'); // Select updated data and zone name
 
     if (error) {
       console.error('Error updating item:', error);
@@ -168,7 +210,10 @@ const Items = () => {
       setError(error.message);
     } else if (data && data.length > 0) {
       setItems((prevItems) =>
-        prevItems.map((i) => (i.id === currentItem.id ? (data[0] as Item) : i))
+        prevItems.map((i) => (i.id === currentItem.id ? {
+          ...data[0] as Item,
+          zone_name: (data[0] as any).zones?.name || 'Non assignée'
+        } : i))
       );
       showSuccess('Article mis à jour avec succès !');
       setIsEditDialogOpen(false);
@@ -299,6 +344,20 @@ const Items = () => {
                 className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="itemZone">Zone (optionnel)</Label>
+              <Select value={newZoneId || ''} onValueChange={(value) => setNewZoneId(value === 'null' ? null : value)}>
+                <SelectTrigger className="w-full dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                  <SelectValue placeholder="Assigner à une zone" />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                  <SelectItem value="null">Non assignée</SelectItem>
+                  {zonesOptions.map((z) => (
+                    <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button type="submit" className="md:col-span-2 lg:col-span-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600" disabled={addingItem}>
               {addingItem ? 'Ajout en cours...' : 'Ajouter l\'Article'}
             </Button>
@@ -321,6 +380,7 @@ const Items = () => {
                   <TableHead className="text-gray-600 dark:text-gray-300">SKU</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Quantité</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Prix</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-300">Zone</TableHead> {/* New column */}
                   <TableHead className="text-gray-600 dark:text-gray-300">Créé le</TableHead>
                   <TableHead className="text-right text-gray-600 dark:text-gray-300">Actions</TableHead>
                 </TableRow>
@@ -328,7 +388,7 @@ const Items = () => {
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-gray-500 dark:text-gray-400">
+                    <TableCell colSpan={8} className="text-center text-gray-500 dark:text-gray-400">
                       Aucun article trouvé. Créez-en un nouveau !
                     </TableCell>
                   </TableRow>
@@ -340,6 +400,7 @@ const Items = () => {
                       <TableCell className="text-gray-700 dark:text-gray-300">{item.sku}</TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{item.quantity}</TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{item.price !== null ? `${item.price.toFixed(2)} €` : 'N/A'}</TableCell>
+                      <TableCell className="text-gray-700 dark:text-gray-300">{(item as any).zone_name}</TableCell> {/* Display zone name */}
                       <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(item.created_at), "PPP")}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(item)}>
@@ -421,6 +482,20 @@ const Items = () => {
                   placeholder="Ex: 999.99"
                   className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editItemZone">Zone (optionnel)</Label>
+                <Select value={editZoneId || ''} onValueChange={(value) => setEditZoneId(value === 'null' ? null : value)}>
+                  <SelectTrigger className="w-full dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600">
+                    <SelectValue placeholder="Assigner à une zone" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                    <SelectItem value="null">Non assignée</SelectItem>
+                    {zonesOptions.map((z) => (
+                      <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <AlertDialogFooter>
                 <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
