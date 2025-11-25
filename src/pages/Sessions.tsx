@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar as CalendarIcon, Edit, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, Edit, Trash2, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -25,6 +25,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 
 interface Session {
   id: string;
@@ -33,6 +35,14 @@ interface Session {
   date: string;
   status: 'Active' | 'Completed' | 'Draft';
   created_at: string;
+  zones?: Zone[]; // Add zones to session interface
+}
+
+interface Zone {
+  id: string;
+  name: string;
+  type: 'PDV Surface' | 'Dépôt';
+  status: 'Active' | 'In Progress' | 'Completed';
 }
 
 const Sessions = () => {
@@ -58,7 +68,7 @@ const Sessions = () => {
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [deletingSession, setDeletingSession] = useState<boolean>(false);
 
-  // Fetch sessions from Supabase
+  // Fetch sessions and their associated zones from Supabase
   useEffect(() => {
     const fetchSessions = async () => {
       if (!session?.user?.id) {
@@ -70,7 +80,7 @@ const Sessions = () => {
       setError(null);
       const { data, error } = await supabase
         .from('sessions')
-        .select('*')
+        .select('*, zones(id, name, type, status)') // Select sessions and their related zones
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
@@ -107,7 +117,7 @@ const Sessions = () => {
         date: newSessionDate.toISOString(),
         status: newSessionStatus,
       })
-      .select();
+      .select('*, zones(id, name, type, status)'); // Select the inserted data to get the full object and zones
 
     if (error) {
       console.error('Error adding session:', error);
@@ -150,7 +160,7 @@ const Sessions = () => {
       })
       .eq('id', currentSession.id)
       .eq('user_id', session.user.id)
-      .select();
+      .select('*, zones(id, name, type, status)'); // Select updated data and zones
 
     if (error) {
       console.error('Error updating session:', error);
@@ -315,28 +325,65 @@ const Sessions = () => {
                   </TableRow>
                 ) : (
                   sessions.map((sessionItem) => (
-                    <TableRow key={sessionItem.id} className="dark:hover:bg-gray-600">
-                      <TableCell className="font-medium text-gray-700 dark:text-gray-300">{sessionItem.id.substring(0, 8)}...</TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-300">{sessionItem.name}</TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(sessionItem.date), "PPP")}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          sessionItem.status === 'Active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                          sessionItem.status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                          'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-100'
-                        }`}>
-                          {sessionItem.status}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(sessionItem)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(sessionItem.id)} disabled={deletingSession}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <Collapsible asChild key={sessionItem.id}>
+                      <>
+                        <TableRow className="dark:hover:bg-gray-600">
+                          <TableCell className="font-medium text-gray-700 dark:text-gray-300">{sessionItem.id.substring(0, 8)}...</TableCell>
+                          <TableCell className="text-gray-700 dark:text-gray-300">{sessionItem.name}</TableCell>
+                          <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(sessionItem.date), "PPP")}</TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              sessionItem.status === 'Active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                              sessionItem.status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                              'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-100'
+                            }`}>
+                              {sessionItem.status}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(sessionItem)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(sessionItem.id)} disabled={deletingSession}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            {sessionItem.zones && sessionItem.zones.length > 0 && (
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="sm" className="ml-2">
+                                  <ChevronDown className="h-4 w-4" />
+                                  <span className="sr-only">Voir les zones</span>
+                                </Button>
+                              </CollapsibleTrigger>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                        {sessionItem.zones && sessionItem.zones.length > 0 && (
+                          <CollapsibleContent asChild>
+                            <TableRow className="bg-gray-50 dark:bg-gray-750">
+                              <TableCell colSpan={5} className="py-2 pl-10 pr-4">
+                                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Zones associées :</h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {sessionItem.zones.map((zone) => (
+                                    <Badge
+                                      key={zone.id}
+                                      className={`${
+                                        zone.status === 'Active'
+                                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                          : zone.status === 'In Progress'
+                                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                          : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                      }`}
+                                    >
+                                      {zone.name} ({zone.type}) - {zone.status === 'Active' ? 'Active' : zone.status === 'In Progress' ? 'En Cours' : 'Complétée'}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          </CollapsibleContent>
+                        )}
+                      </>
+                    </Collapsible>
                   ))
                 )}
               </TableBody>

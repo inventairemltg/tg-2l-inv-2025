@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useSession } from '@/components/SessionContextProvider'; // Import useSession
-import { showSuccess, showError } from '@/utils/toast'; // Import toast utilities
-import { format } from "date-fns"; // Import format for created_at display
-import { Edit, Trash2 } from "lucide-react"; // Import icons
+import { useSession } from '@/components/SessionContextProvider';
+import { showSuccess, showError } from '@/utils/toast';
+import { format } from "date-fns";
+import { Edit, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,19 +25,27 @@ import {
 
 interface Zone {
   id: string;
-  user_id: string; // Added user_id to match Supabase schema
+  user_id: string;
   name: string;
   type: 'PDV Surface' | 'Dépôt';
   status: 'Active' | 'In Progress' | 'Completed';
-  created_at: string; // Added created_at
+  session_id: string | null; // New field
+  created_at: string;
+}
+
+interface SessionOption {
+  id: string;
+  name: string;
 }
 
 const Zones = () => {
   const { supabase, session, loading: sessionLoading } = useSession();
   const [zones, setZones] = useState<Zone[]>([]);
+  const [sessionsOptions, setSessionsOptions] = useState<SessionOption[]>([]); // For session dropdown
   const [newZoneName, setNewZoneName] = useState<string>('');
   const [newZoneType, setNewZoneType] = useState<'PDV Surface' | 'Dépôt'>('PDV Surface');
   const [newZoneStatus, setNewZoneStatus] = useState<'Active' | 'In Progress' | 'Completed'>('Active');
+  const [newZoneSessionId, setNewZoneSessionId] = useState<string | null>(null); // New state for session_id
   const [loadingZones, setLoadingZones] = useState<boolean>(true);
   const [addingZone, setAddingZone] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,12 +56,35 @@ const Zones = () => {
   const [editZoneName, setEditZoneName] = useState<string>('');
   const [editZoneType, setEditZoneType] = useState<'PDV Surface' | 'Dépôt'>('PDV Surface');
   const [editZoneStatus, setEditZoneStatus] = useState<'Active' | 'In Progress' | 'Completed'>('Active');
+  const [editZoneSessionId, setEditZoneSessionId] = useState<string | null>(null); // New state for session_id
   const [updatingZone, setUpdatingZone] = useState<boolean>(false);
 
   // State for deleting
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [zoneToDelete, setZoneToDelete] = useState<string | null>(null);
   const [deletingZone, setDeletingZone] = useState<boolean>(false);
+
+  // Fetch sessions for dropdown
+  useEffect(() => {
+    const fetchSessionsOptions = async () => {
+      if (!session?.user?.id) return;
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, name')
+        .eq('user_id', session.user.id)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching sessions for dropdown:', error);
+      } else {
+        setSessionsOptions(data as SessionOption[]);
+      }
+    };
+
+    if (!sessionLoading && session) {
+      fetchSessionsOptions();
+    }
+  }, [session, sessionLoading, supabase]);
 
   // Fetch zones from Supabase
   useEffect(() => {
@@ -67,7 +98,7 @@ const Zones = () => {
       setError(null);
       const { data, error } = await supabase
         .from('zones')
-        .select('*')
+        .select('*, sessions(name)') // Select session name for display
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
@@ -76,7 +107,10 @@ const Zones = () => {
         showError('Erreur lors du chargement des zones.');
         setError(error.message);
       } else {
-        setZones(data as Zone[]);
+        setZones(data.map(zone => ({
+          ...zone,
+          session_name: zone.sessions?.name || 'Non assignée' // Add session_name for display
+        })) as Zone[]);
       }
       setLoadingZones(false);
     };
@@ -103,18 +137,23 @@ const Zones = () => {
         name: newZoneName.trim(),
         type: newZoneType,
         status: newZoneStatus,
+        session_id: newZoneSessionId, // Include session_id
       })
-      .select(); // Select the inserted data to get the full object
+      .select('*, sessions(name)'); // Select the inserted data to get the full object and session name
 
     if (error) {
       console.error('Error adding zone:', error);
       showError('Erreur lors de l\'ajout de la zone.');
       setError(error.message);
     } else if (data && data.length > 0) {
-      setZones((prevZones) => [data[0] as Zone, ...prevZones]); // Add new zone to the top
+      setZones((prevZones) => [{
+        ...data[0] as Zone,
+        session_name: (data[0] as any).sessions?.name || 'Non assignée'
+      }, ...prevZones]);
       setNewZoneName('');
       setNewZoneType('PDV Surface');
       setNewZoneStatus('Active');
+      setNewZoneSessionId(null); // Reset session_id
       showSuccess('Zone ajoutée avec succès !');
     }
     setAddingZone(false);
@@ -125,6 +164,7 @@ const Zones = () => {
     setEditZoneName(zoneItem.name);
     setEditZoneType(zoneItem.type);
     setEditZoneStatus(zoneItem.status);
+    setEditZoneSessionId(zoneItem.session_id); // Set session_id for editing
     setIsEditDialogOpen(true);
   };
 
@@ -144,10 +184,11 @@ const Zones = () => {
         name: editZoneName.trim(),
         type: editZoneType,
         status: editZoneStatus,
+        session_id: editZoneSessionId, // Update session_id
       })
       .eq('id', currentZone.id)
       .eq('user_id', session.user.id)
-      .select();
+      .select('*, sessions(name)'); // Select updated data and session name
 
     if (error) {
       console.error('Error updating zone:', error);
@@ -155,7 +196,10 @@ const Zones = () => {
       setError(error.message);
     } else if (data && data.length > 0) {
       setZones((prevZones) =>
-        prevZones.map((z) => (z.id === currentZone.id ? (data[0] as Zone) : z))
+        prevZones.map((z) => (z.id === currentZone.id ? {
+          ...data[0] as Zone,
+          session_name: (data[0] as any).sessions?.name || 'Non assignée'
+        } : z))
       );
       showSuccess('Zone mise à jour avec succès !');
       setIsEditDialogOpen(false);
@@ -266,7 +310,21 @@ const Zones = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="md:col-span-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600" disabled={addingZone}>
+            <div className="space-y-2">
+              <Label htmlFor="zoneSession">Session (optionnel)</Label>
+              <Select value={newZoneSessionId || ''} onValueChange={(value) => setNewZoneSessionId(value === 'null' ? null : value)}>
+                <SelectTrigger className="w-full dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                  <SelectValue placeholder="Assigner à une session" />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                  <SelectItem value="null">Non assignée</SelectItem>
+                  {sessionsOptions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" className="md:col-span-4 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600" disabled={addingZone}>
               {addingZone ? 'Ajout en cours...' : 'Ajouter la Zone'}
             </Button>
           </form>
@@ -287,6 +345,7 @@ const Zones = () => {
                   <TableHead className="text-gray-600 dark:text-gray-300">Nom de la Zone</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Type</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Statut</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-300">Session</TableHead> {/* New column */}
                   <TableHead className="text-gray-600 dark:text-gray-300">Créée le</TableHead>
                   <TableHead className="text-right text-gray-600 dark:text-gray-300">Actions</TableHead>
                 </TableRow>
@@ -294,7 +353,7 @@ const Zones = () => {
               <TableBody>
                 {zones.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-gray-500 dark:text-gray-400">
+                    <TableCell colSpan={7} className="text-center text-gray-500 dark:text-gray-400">
                       Aucune zone trouvée. Créez-en une nouvelle !
                     </TableCell>
                   </TableRow>
@@ -313,6 +372,7 @@ const Zones = () => {
                           {zone.status === 'Active' ? 'Active' : zone.status === 'In Progress' ? 'En Cours' : 'Complétée'}
                         </span>
                       </TableCell>
+                      <TableCell className="text-gray-700 dark:text-gray-300">{(zone as any).session_name}</TableCell> {/* Display session name */}
                       <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(zone.created_at), "PPP")}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(zone)}>
@@ -374,6 +434,20 @@ const Zones = () => {
                     <SelectItem value="Active">Active</SelectItem>
                     <SelectItem value="In Progress">En Cours</SelectItem>
                     <SelectItem value="Completed">Complétée</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editZoneSession">Session (optionnel)</Label>
+                <Select value={editZoneSessionId || ''} onValueChange={(value) => setEditZoneSessionId(value === 'null' ? null : value)}>
+                  <SelectTrigger className="w-full dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600">
+                    <SelectValue placeholder="Assigner à une session" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                    <SelectItem value="null">Non assignée</SelectItem>
+                    {sessionsOptions.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
