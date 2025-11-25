@@ -20,7 +20,7 @@ const App = () => (
     <TooltipProvider>
       {/* Using Sonner for all toast notifications */}
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}> {/* Enabled future flags */}
         <SessionContextProvider> {/* Wrap the entire app with SessionContextProvider */}
           <Routes>
             <Route path="/login" element={<Login />} /> {/* Login page */}
