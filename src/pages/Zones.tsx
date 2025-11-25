@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from "date-fns";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, ChevronDown } from "lucide-react"; // Import ChevronDown for collapsible
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +22,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"; // Import Collapsible components
+import { Badge } from "@/components/ui/badge"; // Import Badge for item display
 
 interface Zone {
   id: string;
@@ -29,8 +31,17 @@ interface Zone {
   name: string;
   type: 'PDV Surface' | 'Dépôt';
   status: 'Active' | 'In Progress' | 'Completed';
-  session_id: string | null; // New field
+  session_id: string | null;
   created_at: string;
+  session_name?: string; // For display
+  items?: Item[]; // New: Add items to zone interface
+}
+
+interface Item {
+  id: string;
+  name: string;
+  sku: string;
+  quantity: number;
 }
 
 interface SessionOption {
@@ -45,7 +56,7 @@ const Zones = () => {
   const [newZoneName, setNewZoneName] = useState<string>('');
   const [newZoneType, setNewZoneType] = useState<'PDV Surface' | 'Dépôt'>('PDV Surface');
   const [newZoneStatus, setNewZoneStatus] = useState<'Active' | 'In Progress' | 'Completed'>('Active');
-  const [newZoneSessionId, setNewZoneSessionId] = useState<string | null>(null); // New state for session_id
+  const [newZoneSessionId, setNewZoneSessionId] = useState<string | null>(null);
   const [loadingZones, setLoadingZones] = useState<boolean>(true);
   const [addingZone, setAddingZone] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +67,7 @@ const Zones = () => {
   const [editZoneName, setEditZoneName] = useState<string>('');
   const [editZoneType, setEditZoneType] = useState<'PDV Surface' | 'Dépôt'>('PDV Surface');
   const [editZoneStatus, setEditZoneStatus] = useState<'Active' | 'In Progress' | 'Completed'>('Active');
-  const [editZoneSessionId, setEditZoneSessionId] = useState<string | null>(null); // New state for session_id
+  const [editZoneSessionId, setEditZoneSessionId] = useState<string | null>(null);
   const [updatingZone, setUpdatingZone] = useState<boolean>(false);
 
   // State for deleting
@@ -86,7 +97,7 @@ const Zones = () => {
     }
   }, [session, sessionLoading, supabase]);
 
-  // Fetch zones from Supabase
+  // Fetch zones and their associated sessions and items from Supabase
   useEffect(() => {
     const fetchZones = async () => {
       if (!session?.user?.id) {
@@ -98,7 +109,7 @@ const Zones = () => {
       setError(null);
       const { data, error } = await supabase
         .from('zones')
-        .select('*, sessions(name)') // Select session name for display
+        .select('*, sessions(name), items(id, name, sku, quantity)') // Select session name and associated items
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
@@ -109,7 +120,8 @@ const Zones = () => {
       } else {
         setZones(data.map(zone => ({
           ...zone,
-          session_name: zone.sessions?.name || 'Non assignée' // Add session_name for display
+          session_name: zone.sessions?.name || 'Non assignée', // Add session_name for display
+          items: zone.items || [] // Ensure items is an array
         })) as Zone[]);
       }
       setLoadingZones(false);
@@ -137,9 +149,9 @@ const Zones = () => {
         name: newZoneName.trim(),
         type: newZoneType,
         status: newZoneStatus,
-        session_id: newZoneSessionId, // Include session_id
+        session_id: newZoneSessionId,
       })
-      .select('*, sessions(name)'); // Select the inserted data to get the full object and session name
+      .select('*, sessions(name), items(id, name, sku, quantity)'); // Select the inserted data to get the full object and related data
 
     if (error) {
       console.error('Error adding zone:', error);
@@ -148,12 +160,13 @@ const Zones = () => {
     } else if (data && data.length > 0) {
       setZones((prevZones) => [{
         ...data[0] as Zone,
-        session_name: (data[0] as any).sessions?.name || 'Non assignée'
+        session_name: (data[0] as any).sessions?.name || 'Non assignée',
+        items: (data[0] as any).items || []
       }, ...prevZones]);
       setNewZoneName('');
       setNewZoneType('PDV Surface');
       setNewZoneStatus('Active');
-      setNewZoneSessionId(null); // Reset session_id
+      setNewZoneSessionId(null);
       showSuccess('Zone ajoutée avec succès !');
     }
     setAddingZone(false);
@@ -164,7 +177,7 @@ const Zones = () => {
     setEditZoneName(zoneItem.name);
     setEditZoneType(zoneItem.type);
     setEditZoneStatus(zoneItem.status);
-    setEditZoneSessionId(zoneItem.session_id); // Set session_id for editing
+    setEditZoneSessionId(zoneItem.session_id);
     setIsEditDialogOpen(true);
   };
 
@@ -184,11 +197,11 @@ const Zones = () => {
         name: editZoneName.trim(),
         type: editZoneType,
         status: editZoneStatus,
-        session_id: editZoneSessionId, // Update session_id
+        session_id: editZoneSessionId,
       })
       .eq('id', currentZone.id)
       .eq('user_id', session.user.id)
-      .select('*, sessions(name)'); // Select updated data and session name
+      .select('*, sessions(name), items(id, name, sku, quantity)'); // Select updated data and related data
 
     if (error) {
       console.error('Error updating zone:', error);
@@ -198,7 +211,8 @@ const Zones = () => {
       setZones((prevZones) =>
         prevZones.map((z) => (z.id === currentZone.id ? {
           ...data[0] as Zone,
-          session_name: (data[0] as any).sessions?.name || 'Non assignée'
+          session_name: (data[0] as any).sessions?.name || 'Non assignée',
+          items: (data[0] as any).items || []
         } : z))
       );
       showSuccess('Zone mise à jour avec succès !');
@@ -345,7 +359,7 @@ const Zones = () => {
                   <TableHead className="text-gray-600 dark:text-gray-300">Nom de la Zone</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Type</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Statut</TableHead>
-                  <TableHead className="text-gray-600 dark:text-gray-300">Session</TableHead> {/* New column */}
+                  <TableHead className="text-gray-600 dark:text-gray-300">Session</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Créée le</TableHead>
                   <TableHead className="text-right text-gray-600 dark:text-gray-300">Actions</TableHead>
                 </TableRow>
@@ -359,30 +373,58 @@ const Zones = () => {
                   </TableRow>
                 ) : (
                   zones.map((zone) => (
-                    <TableRow key={zone.id} className="dark:hover:bg-gray-600">
-                      <TableCell className="font-medium text-gray-700 dark:text-gray-300">{zone.id.substring(0, 8)}...</TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-300">{zone.name}</TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-300">{zone.type}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          zone.status === 'Active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                          zone.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                          'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        }`}>
-                          {zone.status === 'Active' ? 'Active' : zone.status === 'In Progress' ? 'En Cours' : 'Complétée'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-300">{(zone as any).session_name}</TableCell> {/* Display session name */}
-                      <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(zone.created_at), "PPP")}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(zone)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(zone.id)} disabled={deletingZone}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <Collapsible asChild key={zone.id}>
+                      <>
+                        <TableRow className="dark:hover:bg-gray-600">
+                          <TableCell className="font-medium text-gray-700 dark:text-gray-300">{zone.id.substring(0, 8)}...</TableCell>
+                          <TableCell className="text-gray-700 dark:text-gray-300">{zone.name}</TableCell>
+                          <TableCell className="text-gray-700 dark:text-gray-300">{zone.type}</TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              zone.status === 'Active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                              zone.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                              'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            }`}>
+                              {zone.status === 'Active' ? 'Active' : zone.status === 'In Progress' ? 'En Cours' : 'Complétée'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-gray-700 dark:text-gray-300">{zone.session_name}</TableCell>
+                          <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(zone.created_at), "PPP")}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(zone)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(zone.id)} disabled={deletingZone}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            {zone.items && zone.items.length > 0 && (
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="sm" className="ml-2">
+                                  <ChevronDown className="h-4 w-4" />
+                                  <span className="sr-only">Voir les articles</span>
+                                </Button>
+                              </CollapsibleTrigger>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                        {zone.items && zone.items.length > 0 && (
+                          <CollapsibleContent asChild>
+                            <TableRow className="bg-gray-50 dark:bg-gray-750">
+                              <TableCell colSpan={7} className="py-2 pl-10 pr-4">
+                                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Articles associés :</h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {zone.items.map((item) => (
+                                    <Badge key={item.id} variant="secondary" className="dark:bg-gray-600 dark:text-gray-50">
+                                      {item.name} (SKU: {item.sku}, Qty: {item.quantity})
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          </CollapsibleContent>
+                        )}
+                      </>
+                    </Collapsible>
                   ))
                 )}
               </TableBody>

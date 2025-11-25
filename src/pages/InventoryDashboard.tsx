@@ -30,6 +30,7 @@ const InventoryDashboard = () => {
   const [totalSessions, setTotalSessions] = useState(0);
   const [totalZones, setTotalZones] = useState(0);
   const [completedZones, setCompletedZones] = useState(0);
+  const [totalItems, setTotalItems] = useState(0); // New state for total items
   const [recentSessions, setRecentSessions] = useState<SessionData[]>([]);
   const [zoneStatuses, setZoneStatuses] = useState<ZoneData[]>([]);
   const [sessionStatusData, setSessionStatusData] = useState<ChartData[]>([]);
@@ -76,6 +77,15 @@ const InventoryDashboard = () => {
 
         if (completedZonesError) throw completedZonesError;
         setCompletedZones(completedZonesCount || 0);
+
+        // Fetch total items
+        const { count: itemsCount, error: itemsError } = await supabase
+          .from('items')
+          .select('*', { count: 'exact' })
+          .eq('user_id', session.user.id);
+
+        if (itemsError) throw itemsError;
+        setTotalItems(itemsCount || 0);
 
         // Fetch recent sessions (e.g., last 3)
         const { data: recentSessionsData, error: recentSessionsError } = await supabase
@@ -194,7 +204,7 @@ const InventoryDashboard = () => {
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6"> {/* Changed to 4 columns */}
         {/* Card 1: Total Sessions */}
         <Card className="shadow-md dark:bg-gray-700">
           <CardHeader>
@@ -220,6 +230,15 @@ const InventoryDashboard = () => {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{completedZones}</p>
+          </CardContent>
+        </Card>
+        {/* Card 4: Total Items (New) */}
+        <Card className="shadow-md dark:bg-gray-700">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold text-gray-700 dark:text-gray-200">Articles Totaux</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{totalItems}</p>
           </CardContent>
         </Card>
       </div>
