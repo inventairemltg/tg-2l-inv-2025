@@ -23,6 +23,12 @@ interface ChartData {
   value: number;
 }
 
+interface ZoneWithItemCount {
+  zone_id: string;
+  zone_name: string;
+  item_count: number;
+}
+
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A28DFF']; // Custom colors for charts
 
 const InventoryDashboard = () => {
@@ -30,12 +36,13 @@ const InventoryDashboard = () => {
   const [totalSessions, setTotalSessions] = useState(0);
   const [totalZones, setTotalZones] = useState(0);
   const [completedZones, setCompletedZones] = useState(0);
-  const [totalItems, setTotalItems] = useState(0); // New state for total items
+  const [totalItems, setTotalItems] = useState(0);
   const [recentSessions, setRecentSessions] = useState<SessionData[]>([]);
   const [zoneStatuses, setZoneStatuses] = useState<ZoneData[]>([]);
   const [sessionStatusData, setSessionStatusData] = useState<ChartData[]>([]);
   const [zoneTypeData, setZoneTypeData] = useState<ChartData[]>([]);
   const [zoneOverallStatusData, setZoneOverallStatusData] = useState<ChartData[]>([]);
+  const [topZonesByItemCount, setTopZonesByItemCount] = useState<ZoneWithItemCount[]>([]); // New state
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,10 +136,9 @@ const InventoryDashboard = () => {
         setSessionStatusData(formattedSessionStatusData);
 
         // --- Data for Zone Type Chart and Zone Overall Status Chart ---
-        // Fetch both 'type' and 'status' in one go for efficiency
         const { data: allZones, error: allZonesError } = await supabase
           .from('zones')
-          .select('type, status') // Now selecting both type and status
+          .select('id, name, type, status')
           .eq('user_id', session.user.id);
 
         if (allZonesError) throw allZonesError;
@@ -161,6 +167,35 @@ const InventoryDashboard = () => {
           { name: 'Complétée', value: zoneOverallStatusCounts['Completed'] || 0 },
         ].filter(item => item.value > 0);
         setZoneOverallStatusData(formattedZoneOverallStatusData);
+
+        // --- Top Zones by Item Count (New) ---
+        const { data: itemsByZone, error: itemsByZoneError } = await supabase
+          .from('items')
+          .select('zone_id, count', { count: 'exact' }) // Select zone_id and count items
+          .eq('user_id', session.user.id)
+          .not('zone_id', 'is', null) // Only count items assigned to a zone
+          .order('count', { ascending: false })
+          .limit(5);
+
+        if (itemsByZoneError) throw itemsByZoneError;
+
+        // Fetch zone names for the top zones
+        const zoneIds = itemsByZone.map(item => item.zone_id);
+        const { data: zoneNamesData, error: zoneNamesError } = await supabase
+          .from('zones')
+          .select('id, name')
+          .in('id', zoneIds);
+
+        if (zoneNamesError) throw zoneNamesError;
+
+        const zoneNameMap = new Map(zoneNamesData.map(zone => [zone.id, zone.name]));
+
+        const formattedTopZones = itemsByZone.map(item => ({
+          zone_id: item.zone_id,
+          zone_name: zoneNameMap.get(item.zone_id) || 'Zone Inconnue',
+          item_count: item.count,
+        }));
+        setTopZonesByItemCount(formattedTopZones);
 
       } catch (err: any) {
         console.error('Error fetching dashboard data:', err);
@@ -204,7 +239,7 @@ const InventoryDashboard = () => {
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6"> {/* Changed to 4 columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         {/* Card 1: Total Sessions */}
         <Card className="shadow-md dark:bg-gray-700">
           <CardHeader>
@@ -335,6 +370,24 @@ const InventoryDashboard = () => {
           </Card>
         )}
       </div>
+
+      {/* Section: Top Zones by Item Count (New) */}
+      {topZonesByItemCount.length > 0 && (
+        <Card className="shadow-md mb-6 dark:bg-gray-700">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold text-gray-700 dark:text-gray-200">Top 5 Zones par Articles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc pl-5 space-y-2">
+              {topZonesByItemCount.map((zone, index) => (
+                <li key={zone.zone_id} className="text-gray-700 dark:text-gray-300">
+                  {zone.zone_name}: <span className="font-bold">{zone.item_count}</span> articles
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Section: Recent Sessions */}
       <Card className="shadow-md mb-6 dark:bg-gray-700">
