@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from "date-fns";
-import { Edit, Trash2, Package } from "lucide-react";
+import { Edit, Trash2, Search } from "lucide-react"; // Import Search icon
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,8 +31,9 @@ interface Item {
   sku: string;
   quantity: number;
   price: number | null;
-  zone_id: string | null; // New field
+  zone_id: string | null;
   created_at: string;
+  zone_name?: string; // For display
 }
 
 interface ZoneOption {
@@ -43,13 +44,13 @@ interface ZoneOption {
 const Items = () => {
   const { supabase, session, loading: sessionLoading } = useSession();
   const [items, setItems] = useState<Item[]>([]);
-  const [zonesOptions, setZonesOptions] = useState<ZoneOption[]>([]); // For zone dropdown
+  const [zonesOptions, setZonesOptions] = useState<ZoneOption[]>([]);
   const [newItemName, setNewItemName] = useState<string>('');
   const [newItemDescription, setNewItemDescription] = useState<string>('');
   const [newItemSku, setNewItemSku] = useState<string>('');
   const [newItemQuantity, setNewItemQuantity] = useState<number>(0);
   const [newItemPrice, setNewItemPrice] = useState<string>('');
-  const [newZoneId, setNewZoneId] = useState<string | null>(null); // New state for zone_id
+  const [newZoneId, setNewZoneId] = useState<string | null>(null);
   const [loadingItems, setLoadingItems] = useState<boolean>(true);
   const [addingItem, setAddingItem] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,13 +63,17 @@ const Items = () => {
   const [editItemSku, setEditItemSku] = useState<string>('');
   const [editItemQuantity, setEditItemQuantity] = useState<number>(0);
   const [editItemPrice, setEditItemPrice] = useState<string>('');
-  const [editZoneId, setEditZoneId] = useState<string | null>(null); // New state for zone_id
+  const [editZoneId, setEditZoneId] = useState<string | null>(null);
   const [updatingItem, setUpdatingItem] = useState<boolean>(false);
 
   // State for deleting
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [deletingItem, setDeletingItem] = useState<boolean>(false);
+
+  // State for search and filter
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filterZoneId, setFilterZoneId] = useState<string | null>(null);
 
   // Fetch zones for dropdown
   useEffect(() => {
@@ -102,11 +107,18 @@ const Items = () => {
 
       setLoadingItems(true);
       setError(null);
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('items')
-        .select('*, zones(name)') // Select zone name for display
+        .select('*, zones(name)')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
+
+      if (filterZoneId) {
+        query = query.eq('zone_id', filterZoneId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching items:', error);
@@ -115,7 +127,7 @@ const Items = () => {
       } else {
         setItems(data.map(item => ({
           ...item,
-          zone_name: item.zones?.name || 'Non assignée' // Add zone_name for display
+          zone_name: item.zones?.name || 'Non assignée'
         })) as Item[]);
       }
       setLoadingItems(false);
@@ -124,7 +136,20 @@ const Items = () => {
     if (!sessionLoading && session) {
       fetchItems();
     }
-  }, [session, sessionLoading, supabase]);
+  }, [session, sessionLoading, supabase, filterZoneId]); // Re-fetch when filterZoneId changes
+
+  // Filter items based on search term
+  const filteredItems = useMemo(() => {
+    if (!searchTerm) {
+      return items;
+    }
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    return items.filter(item =>
+      item.name.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.sku.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.description?.toLowerCase().includes(lowerCaseSearchTerm)
+    );
+  }, [items, searchTerm]);
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,9 +170,9 @@ const Items = () => {
         sku: newItemSku.trim(),
         quantity: newItemQuantity,
         price: newItemPrice ? parseFloat(newItemPrice) : null,
-        zone_id: newZoneId, // Include zone_id
+        zone_id: newZoneId,
       })
-      .select('*, zones(name)'); // Select the inserted data to get the full object and zone name
+      .select('*, zones(name)');
 
     if (error) {
       console.error('Error adding item:', error);
@@ -163,7 +188,7 @@ const Items = () => {
       setNewItemSku('');
       setNewItemQuantity(0);
       setNewItemPrice('');
-      setNewZoneId(null); // Reset zone_id
+      setNewZoneId(null);
       showSuccess('Article ajouté avec succès !');
     }
     setAddingItem(false);
@@ -176,7 +201,7 @@ const Items = () => {
     setEditItemSku(item.sku);
     setEditItemQuantity(item.quantity);
     setEditItemPrice(item.price !== null ? item.price.toString() : '');
-    setEditZoneId(item.zone_id); // Set zone_id for editing
+    setEditZoneId(item.zone_id);
     setIsEditDialogOpen(true);
   };
 
@@ -198,11 +223,11 @@ const Items = () => {
         sku: editItemSku.trim(),
         quantity: editItemQuantity,
         price: editItemPrice ? parseFloat(editItemPrice) : null,
-        zone_id: editZoneId, // Update zone_id
+        zone_id: editZoneId,
       })
       .eq('id', currentItem.id)
       .eq('user_id', session.user.id)
-      .select('*, zones(name)'); // Select updated data and zone name
+      .select('*, zones(name)');
 
     if (error) {
       console.error('Error updating item:', error);
@@ -365,12 +390,38 @@ const Items = () => {
         </CardContent>
       </Card>
 
-      {/* Section: Existing Items */}
+      {/* Section: Existing Items with Search and Filter */}
       <Card className="shadow-md dark:bg-gray-700">
         <CardHeader>
           <CardTitle className="text-xl font-semibold text-gray-700 dark:text-gray-200">Articles Existants</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher par nom ou SKU..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600"
+              />
+            </div>
+            <div className="w-full md:w-1/3 lg:w-1/4">
+              <Select value={filterZoneId || 'null'} onValueChange={(value) => setFilterZoneId(value === 'null' ? null : value)}>
+                <SelectTrigger className="w-full dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                  <SelectValue placeholder="Filtrer par zone" />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600">
+                  <SelectItem value="null">Toutes les zones</SelectItem>
+                  {zonesOptions.map((z) => (
+                    <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -380,27 +431,27 @@ const Items = () => {
                   <TableHead className="text-gray-600 dark:text-gray-300">SKU</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Quantité</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Prix</TableHead>
-                  <TableHead className="text-gray-600 dark:text-gray-300">Zone</TableHead> {/* New column */}
+                  <TableHead className="text-gray-600 dark:text-gray-300">Zone</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-300">Créé le</TableHead>
                   <TableHead className="text-right text-gray-600 dark:text-gray-300">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.length === 0 ? (
+                {filteredItems.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-gray-500 dark:text-gray-400">
-                      Aucun article trouvé. Créez-en un nouveau !
+                      Aucun article trouvé avec les critères de recherche/filtre.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((item) => (
+                  filteredItems.map((item) => (
                     <TableRow key={item.id} className="dark:hover:bg-gray-600">
                       <TableCell className="font-medium text-gray-700 dark:text-gray-300">{item.id.substring(0, 8)}...</TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{item.name}</TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{item.sku}</TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{item.quantity}</TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{item.price !== null ? `${item.price.toFixed(2)} €` : 'N/A'}</TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-300">{(item as any).zone_name}</TableCell> {/* Display zone name */}
+                      <TableCell className="text-gray-700 dark:text-gray-300">{item.zone_name}</TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(item.created_at), "PPP")}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditClick(item)}>
@@ -421,7 +472,7 @@ const Items = () => {
 
       {/* Edit Item Dialog */}
       {currentItem && (
-        <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <AlertDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}> {/* Corrected typo here */}
           <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
             <AlertDialogHeader>
               <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Modifier l'Article</AlertDialogTitle>
