@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { format } from "date-fns";
-import { Edit, Trash2, ChevronDown, Plus, Package } from "lucide-react"; // Import Plus and Package icons
+import { Edit, Trash2, ChevronDown, Plus, Package } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog"; // Import Dialog components
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 
 interface Zone {
   id: string;
@@ -59,7 +59,7 @@ interface SessionOption {
 const Zones = () => {
   const { supabase, session, loading: sessionLoading } = useSession();
   const [zones, setZones] = useState<Zone[]>([]);
-  const [sessionsOptions, setSessionsOptions] = useState<SessionOption[]>([]); // For session dropdown
+  const [sessionsOptions, setSessionsOptions] = useState<SessionOption[]>([]);
   const [newZoneName, setNewZoneName] = useState<string>('');
   const [newZoneType, setNewZoneType] = useState<'PDV Surface' | 'Dépôt'>('PDV Surface');
   const [newZoneStatus, setNewZoneStatus] = useState<'Active' | 'In Progress' | 'Completed'>('Active');
@@ -93,6 +93,22 @@ const Zones = () => {
   const [newItemSku, setNewItemSku] = useState<string>('');
   const [newItemQuantity, setNewItemQuantity] = useState<number>(0);
   const [newItemPrice, setNewItemPrice] = useState<string>('');
+
+  // States for editing items within the item management dialog
+  const [isZoneItemEditDialogOpen, setIsZoneItemEditDialogOpen] = useState(false);
+  const [currentZoneItem, setCurrentZoneItem] = useState<Item | null>(null);
+  const [editZoneItemName, setEditZoneItemName] = useState<string>('');
+  const [editZoneItemDescription, setEditZoneItemDescription] = useState<string>('');
+  const [editZoneItemSku, setEditZoneItemSku] = useState<string>('');
+  const [editZoneItemQuantity, setEditZoneItemQuantity] = useState<number>(0);
+  const [editZoneItemPrice, setEditZoneItemPrice] = useState<string>('');
+  const [updatingZoneItem, setUpdatingZoneItem] = useState<boolean>(false);
+
+  // States for deleting items within the item management dialog
+  const [isZoneItemDeleteDialogOpen, setIsZoneItemDeleteDialogOpen] = useState(false);
+  const [zoneItemToDelete, setZoneItemToDelete] = useState<string | null>(null);
+  const [deletingZoneItem, setDeletingZoneItem] = useState<boolean>(false);
+
 
   // Fetch sessions for dropdown
   useEffect(() => {
@@ -325,10 +341,11 @@ const Zones = () => {
       showError('Erreur lors de l\'ajout de l\'article à la zone: ' + error.message);
       setError(error.message);
     } else if (data && data.length > 0) {
-      setZoneItems((prevItems) => [data[0] as Item, ...prevItems]);
-      // Also update the main zones state to reflect the new item count/list
+      const newItem = data[0] as Item;
+      setZoneItems((prevItems) => [newItem, ...prevItems]);
+      // Also update the main zones state to reflect the new item
       setZones(prevZones => prevZones.map(z => 
-        z.id === selectedZoneForItems.id ? { ...z, items: [...(z.items || []), data[0] as Item] } : z
+        z.id === selectedZoneForItems.id ? { ...z, items: [...(z.items || []), newItem] } : z
       ));
       setNewItemName('');
       setNewItemDescription('');
@@ -338,6 +355,100 @@ const Zones = () => {
       showSuccess('Article ajouté à la zone avec succès !');
     }
     setAddingZoneItem(false);
+  };
+
+  // Functions for editing items within the item management dialog
+  const handleEditZoneItemClick = (item: Item) => {
+    setCurrentZoneItem(item);
+    setEditZoneItemName(item.name);
+    setEditZoneItemDescription(item.description || '');
+    setEditZoneItemSku(item.sku);
+    setEditZoneItemQuantity(item.quantity);
+    setEditZoneItemPrice(item.price !== null ? item.price.toString() : '');
+    setIsZoneItemEditDialogOpen(true);
+  };
+
+  const handleUpdateZoneItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentZoneItem || !editZoneItemName.trim() || !editZoneItemSku.trim() || !session?.user?.id || !selectedZoneForItems?.id) {
+      showError('Veuillez remplir tous les champs requis et être connecté.');
+      return;
+    }
+
+    setUpdatingZoneItem(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from('items')
+      .update({
+        name: editZoneItemName.trim(),
+        description: editZoneItemDescription.trim() || null,
+        sku: editZoneItemSku.trim(),
+        quantity: editZoneItemQuantity,
+        price: editZoneItemPrice ? parseFloat(editZoneItemPrice) : null,
+      })
+      .eq('id', currentZoneItem.id)
+      .eq('user_id', session.user.id)
+      .eq('zone_id', selectedZoneForItems.id)
+      .select();
+
+    if (error) {
+      console.error('Error updating item in zone:', error);
+      showError('Erreur lors de la mise à jour de l\'article: ' + error.message);
+      setError(error.message);
+    } else if (data && data.length > 0) {
+      const updatedItem = data[0] as Item;
+      setZoneItems((prevItems) =>
+        prevItems.map((i) => (i.id === currentZoneItem.id ? updatedItem : i))
+      );
+      // Also update the main zones state
+      setZones(prevZones => prevZones.map(z => 
+        z.id === selectedZoneForItems.id ? { ...z, items: (z.items || []).map(item => item.id === updatedItem.id ? updatedItem : item) } : z
+      ));
+      showSuccess('Article mis à jour avec succès !');
+      setIsZoneItemEditDialogOpen(false);
+      setCurrentZoneItem(null);
+    }
+    setUpdatingZoneItem(false);
+  };
+
+  // Functions for deleting items within the item management dialog
+  const handleDeleteZoneItemClick = (itemId: string) => {
+    setZoneItemToDelete(itemId);
+    setIsZoneItemDeleteDialogOpen(true);
+  };
+
+  const handleDeleteZoneItem = async () => {
+    if (!zoneItemToDelete || !session?.user?.id || !selectedZoneForItems?.id) {
+      showError('Aucun article sélectionné pour la suppression ou non connecté.');
+      return;
+    }
+
+    setDeletingZoneItem(true);
+    setError(null);
+
+    const { error } = await supabase
+      .from('items')
+      .delete()
+      .eq('id', zoneItemToDelete)
+      .eq('user_id', session.user.id)
+      .eq('zone_id', selectedZoneForItems.id);
+
+    if (error) {
+      console.error('Error deleting item from zone:', error);
+      showError('Erreur lors de la suppression de l\'article: ' + error.message);
+      setError(error.message);
+    } else {
+      setZoneItems((prevItems) => prevItems.filter((i) => i.id !== zoneItemToDelete));
+      // Also update the main zones state
+      setZones(prevZones => prevZones.map(z => 
+        z.id === selectedZoneForItems.id ? { ...z, items: (z.items || []).filter(item => item.id !== zoneItemToDelete) } : z
+      ));
+      showSuccess('Article supprimé avec succès !');
+      setIsZoneItemDeleteDialogOpen(false);
+      setZoneItemToDelete(null);
+    }
+    setDeletingZoneItem(false);
   };
 
 
@@ -702,6 +813,7 @@ const Zones = () => {
                         <TableHead className="text-gray-600 dark:text-gray-300">Quantité</TableHead>
                         <TableHead className="text-gray-600 dark:text-gray-300">Prix</TableHead>
                         <TableHead className="text-gray-600 dark:text-gray-300">Créé le</TableHead>
+                        <TableHead className="text-right text-gray-600 dark:text-gray-300">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -712,6 +824,14 @@ const Zones = () => {
                           <TableCell className="text-gray-700 dark:text-gray-300">{item.quantity}</TableCell>
                           <TableCell className="text-gray-700 dark:text-gray-300">{item.price !== null ? `${item.price.toFixed(2)} €` : 'N/A'}</TableCell>
                           <TableCell className="text-gray-700 dark:text-gray-300">{format(new Date(item.created_at), "PPP")}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm" className="mr-2 dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500" onClick={() => handleEditZoneItemClick(item)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => handleDeleteZoneItemClick(item.id)} disabled={deletingZoneItem}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -725,6 +845,100 @@ const Zones = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Edit Item Dialog within Zone Management */}
+      {currentZoneItem && (
+        <AlertDialog open={isZoneItemEditDialogOpen} onOpenChange={setIsZoneItemEditDialogOpen}>
+          <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Modifier l'Article</AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-600 dark:text-gray-300">
+                Apportez des modifications à l'article d'inventaire. Cliquez sur enregistrer lorsque vous avez terminé.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form onSubmit={handleUpdateZoneItem} className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="editZoneItemName">Nom de l'Article</Label>
+                <Input
+                  id="editZoneItemName"
+                  value={editZoneItemName}
+                  onChange={(e) => setEditZoneItemName(e.target.value)}
+                  required
+                  className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editZoneItemDescription">Description</Label>
+                <Input
+                  id="editZoneItemDescription"
+                  value={editZoneItemDescription}
+                  onChange={(e) => setEditZoneItemDescription(e.target.value)}
+                  className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editZoneItemSku">SKU (Code Article)</Label>
+                <Input
+                  id="editZoneItemSku"
+                  value={editZoneItemSku}
+                  onChange={(e) => setEditZoneItemSku(e.target.value)}
+                  required
+                  className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editZoneItemQuantity">Quantité</Label>
+                <Input
+                  id="editZoneItemQuantity"
+                  type="number"
+                  value={editZoneItemQuantity}
+                  onChange={(e) => setEditZoneItemQuantity(parseInt(e.target.value) || 0)}
+                  min="0"
+                  required
+                  className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editZoneItemPrice">Prix (optionnel)</Label>
+                <Input
+                  id="editZoneItemPrice"
+                  type="number"
+                  step="0.01"
+                  value={editZoneItemPrice}
+                  onChange={(e) => setEditZoneItemPrice(e.target.value)}
+                  placeholder="Ex: 999.99"
+                  className="dark:bg-gray-700 dark:text-gray-50 dark:border-gray-600"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
+                <AlertDialogAction type="submit" disabled={updatingZoneItem} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+                  {updatingZoneItem ? 'Mise à jour...' : 'Enregistrer les modifications'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* Delete Item Confirmation Dialog within Zone Management */}
+      <AlertDialog open={isZoneItemDeleteDialogOpen} onOpenChange={setIsZoneItemDeleteDialogOpen}>
+        <AlertDialogContent className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-800 dark:text-gray-50">Êtes-vous absolument sûr ?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600 dark:text-gray-300">
+              Cette action ne peut pas être annulée. Cela supprimera définitivement cet article
+              de cette zone et de nos serveurs.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="dark:bg-gray-600 dark:text-gray-50 dark:border-gray-500 hover:dark:bg-gray-500">Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteZoneItem} disabled={deletingZoneItem} className="bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600">
+              {deletingZoneItem ? 'Suppression...' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
