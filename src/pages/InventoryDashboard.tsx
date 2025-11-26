@@ -371,20 +371,33 @@ const InventoryDashboard = () => {
         )}
       </div>
 
-      {/* Section: Top Zones by Item Count (New) */}
+      {/* Section: Top Zones by Item Count (New Chart) */}
       {topZonesByItemCount.length > 0 && (
         <Card className="shadow-md mb-6 dark:bg-gray-700">
           <CardHeader>
             <CardTitle className="text-xl font-semibold text-gray-700 dark:text-gray-200">Top 5 Zones par Articles</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="list-disc pl-5 space-y-2">
-              {topZonesByItemCount.map((zone, index) => (
-                <li key={zone.zone_id} className="text-gray-700 dark:text-gray-300">
-                  {zone.zone_name}: <span className="font-bold">{zone.item_count}</span> articles
-                </li>
-              ))}
-            </ul>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={topZonesByItemCount}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="item_count"
+                  nameKey="zone_name"
+                >
+                  {topZonesByItemCount.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       )}
