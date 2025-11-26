@@ -23,6 +23,7 @@ const Profile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
+  const [avatarUrl, setAvatarUrl] = useState<string>(''); // New state for avatar URL
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [updatingProfile, setUpdatingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +52,7 @@ const Profile = () => {
         setProfile(data as Profile);
         setFirstName(data.first_name || '');
         setLastName(data.last_name || '');
+        setAvatarUrl(data.avatar_url || ''); // Set avatar URL from fetched data
       }
       setLoadingProfile(false);
     };
@@ -77,6 +79,7 @@ const Profile = () => {
       .update({
         first_name: firstName,
         last_name: lastName,
+        avatar_url: avatarUrl.trim() || null, // Update avatar_url
         updated_at: new Date().toISOString(),
       })
       .eq('id', session.user.id);
@@ -87,9 +90,11 @@ const Profile = () => {
       setError(error.message);
     } else {
       showSuccess('Profil mis à jour avec succès !');
-      // Optionally refetch profile to ensure state is fully consistent
-      // or update local state directly if data is simple
-      setProfile(prev => prev ? { ...prev, first_name: firstName, last_name: lastName, updated_at: new Date().toISOString() } : null);
+      // Update local state directly to reflect changes
+      setProfile(prev => prev ? { ...prev, first_name: firstName, last_name: lastName, avatar_url: avatarUrl.trim() || null, updated_at: new Date().toISOString() } : null);
+      // Manually update session user metadata if avatar_url is stored there for header display
+      // Note: This might require a session refresh or re-fetching user data to be fully consistent across the app.
+      // For simplicity, we'll rely on the next session load to pick it up, or a manual refresh.
     }
     setUpdatingProfile(false);
   };
@@ -153,6 +158,17 @@ const Profile = () => {
                 className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600"
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="avatarUrl">URL de l'Avatar</Label>
+            <Input
+              id="avatarUrl"
+              type="url"
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              placeholder="https://example.com/mon-avatar.jpg"
+              className="dark:bg-gray-800 dark:text-gray-50 dark:border-gray-600"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
